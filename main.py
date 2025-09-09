@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import argparse
 import asyncio
 import logging
@@ -115,7 +117,7 @@ class FallTemplateBot2025(ForecastBot):
                 f"""
                 You are an assistant to a superforecaster.
                 The superforecaster will give you a question they intend to forecast on.
-                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information. Read the rules carefully to understand resolution criteria. Look for domain experts' opinions, base rates (outside view), consensus views, and any missing factors/influences the consensus may overlook. Seek information for Bayesian updating and Fermi-style breakdowns if applicable. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
                 You do not produce forecasts yourself.
 
                 Question:
@@ -196,7 +198,7 @@ class FallTemplateBot2025(ForecastBot):
             (c) A brief description of a scenario that results in a No outcome.
             (d) A brief description of a scenario that results in a Yes outcome.
 
-            You write your rationale remembering that good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time.
+            You write your rationale remembering that good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time. Avoid overconfidence by assigning moderate probabilities and leaving room for uncertainty. Don't be contrarian for its own sake, but look for information, factors, and influences that the consensus may be missing. Use nuanced weighting: anchor with outside view base rate to avoid anchoring bias, then move to inside view. Accurately update based on new information (Bayesianism). Use Fermi estimates if applicable by breaking down into easier steps. Read the rules carefully. Utilize different points of view (teams of superforecasters) and incorporate feedback. Forecast changes should be gradual. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
 
             The last thing you write is your final answer as: "Probability: ZZ%", 0-100
             """
@@ -244,7 +246,7 @@ class FallTemplateBot2025(ForecastBot):
             (b) The status quo outcome if nothing changed.
             (c) A description of an scenario that results in an unexpected outcome.
 
-            You write your rationale remembering that (1) good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time, and (2) good forecasters leave some moderate probability on most options to account for unexpected outcomes.
+            You write your rationale remembering that (1) good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time, and (2) good forecasters leave some moderate probability on most options to account for unexpected outcomes. Avoid overconfidence by distributing probabilities moderately. Don't be contrarian for its own sake, but look for information, factors, and influences that the consensus may be missing. Use nuanced weighting: anchor with outside view base rate to avoid anchoring bias, then move to inside view. Accurately update based on new information (Bayesianism). Use Fermi estimates if applicable by breaking down into easier steps. Read the rules carefully. Utilize different points of view (teams of superforecasters) and incorporate feedback. Forecast changes should be gradual. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
 
             The last thing you write is your final probabilities for the N options in this order {question.options} as:
             Option_A: Probability_A
@@ -318,7 +320,7 @@ class FallTemplateBot2025(ForecastBot):
             (e) A brief description of an unexpected scenario that results in a low outcome.
             (f) A brief description of an unexpected scenario that results in a high outcome.
 
-            You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns.
+            You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns. Avoid overconfidence by using wide distributions. Don't be contrarian for its own sake, but look for information, factors, and influences that the consensus may be missing. Use nuanced weighting: anchor with outside view base rate to avoid anchoring bias, then move to inside view. Accurately update based on new information (Bayesianism). Use Fermi estimates by breaking down questions into series of easier steps. Read the rules carefully. Utilize different points of view (teams of superforecasters) and incorporate feedback. Forecast changes should be gradual. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
 
             The last thing you write is your final answer as:
             "
@@ -331,16 +333,64 @@ class FallTemplateBot2025(ForecastBot):
             "
             """
         )
-        reasoning = await self.get_llm("default", "llm").invoke(prompt)
-        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
-        percentile_list: list[Percentile] = await structure_output(
-            reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+        # Define forecaster models
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6", "forecaster7"]
+        individual_reasonings = []
+        individual_predictions = []
+
+        # Generate individual forecasts
+        for key in forecaster_keys:
+            llm = self.get_llm(key, "llm")
+            reasoning = await llm.invoke(prompt)
+            logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
+            percentile_list: list[Percentile] = await structure_output(
+                reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+            )
+            prediction = NumericDistribution.from_question(percentile_list, question)
+            individual_reasonings.append(reasoning)
+            individual_predictions.append(prediction)
+            logger.info(f"Forecast from {key} for URL {question.page_url}: {prediction.declared_percentiles}")
+
+        # Synthesize final prediction
+        synth_prompt = clean_indents(
+            f"""
+            You are a synthesizer comparing multiple forecaster outputs for a numeric question.
+
+            Question: {question.question_text}
+
+            Individual forecasts:
+            """
         )
-        prediction = NumericDistribution.from_question(percentile_list, question)
-        logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}"
+        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
+            synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred.declared_percentiles}\n"
+
+        synth_prompt += clean_indents(
+            f"""
+            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced distribution.
+
+            Output only the final percentiles:
+            Percentile 10: XX
+            Percentile 20: XX
+            Percentile 40: XX
+            Percentile 60: XX
+            Percentile 80: XX
+            Percentile 90: XX
+            """
         )
-        return ReasonedPrediction(prediction_value=prediction, reasoning=reasoning)
+
+        synth_llm = self.get_llm("synthesizer", "llm")
+        synth_reasoning = await synth_llm.invoke(synth_prompt)
+        logger.info(f"Synthesized reasoning for URL {question.page_url}: {synth_reasoning}")
+        final_percentile_list: list[Percentile] = await structure_output(
+            synth_reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+        )
+        final_prediction = NumericDistribution.from_question(final_percentile_list, question)
+        logger.info(f"Synthesized final prediction for URL {question.page_url}: {final_prediction.declared_percentiles}")
+
+        # Combined reasoning
+        combined_reasoning = "\n\n".join([f"Forecaster {i+1}: {r}" for i, r in enumerate(individual_reasonings)]) + f"\n\nSynthesis: {synth_reasoning}"
+
+        return ReasonedPrediction(prediction_value=final_prediction, reasoning=combined_reasoning)
 
     def _create_upper_and_lower_bound_messages(
         self, question: NumericQuestion
@@ -376,6 +426,14 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
+    # Load .env
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    # Debug env
+    import os
+    print(f"Loaded OPENROUTER_API_KEY: {'*' * 10 if os.getenv('OPENROUTER_API_KEY') else 'Not loaded'}")
+
     # Suppress LiteLLM logging
     litellm_logger = logging.getLogger("LiteLLM")
     litellm_logger.setLevel(logging.WARNING)
@@ -401,22 +459,35 @@ if __name__ == "__main__":
 
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=5,
+        predictions_per_research_report=7,  # Adjusted for 7 models
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
-        # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
-        #     "default": GeneralLlm(
-        #         model="openrouter/openai/gpt-4o", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
-        #         temperature=0.3,
-        #         timeout=40,
-        #         allowed_tries=2,
-        #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
-        #     "researcher": "asknews/deep-research/low",
-        #     "parser": "openai/gpt-4o-mini",
-        # },
+        llms={
+            "default": GeneralLlm(
+                model="openai/gpt-4o",
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "synthesizer": GeneralLlm(
+                model="openai/gpt-4o",
+                temperature=0.3,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster1": "openai/gpt-4o-mini",
+            "forecaster2": "openai/gpt-4o-mini",
+            "forecaster3": "openai/gpt-4o-mini",
+            "forecaster4": "openai/gpt-4o-mini",
+            "forecaster5": "openai/gpt-4o-mini",
+            "forecaster6": "openai/gpt-4o-mini",
+            "forecaster7": "openai/gpt-4o-mini",
+            "parser": "openai/gpt-4o-mini",
+            "researcher": "openai/gpt-4o-mini",
+            "summarizer": "openai/gpt-4o-mini",
+        },
     )
 
     if run_mode == "tournament":
@@ -442,17 +513,23 @@ if __name__ == "__main__":
         )
     elif run_mode == "test_questions":
         # Example questions are a good way to test the bot's performance on a single question
-        EXAMPLE_QUESTIONS = [
-            "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
-            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
-            "https://www.metaculus.com/questions/22427/number-of-new-leading-ai-labs/",  # Number of New Leading AI Labs - Multiple Choice
-            "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/",  # Number of US Labor Strikes Due to AI in 2029 - Discrete
-        ]
+        # Temporarily use dummy numeric question for testing multi-model without API token
+        from forecasting_tools import NumericQuestion
+        dummy_question = NumericQuestion(
+            question_text="What will be the age of the oldest human as of 2100?",
+            background_info="The current record is 122 years. Advances in medicine may extend it.",
+            resolution_criteria="Official Guinness record.",
+            fine_print="",
+            unit_of_measure="years",
+            lower_bound=100,
+            upper_bound=200,
+            open_lower_bound=False,
+            open_upper_bound=False,
+            page_url="dummy://test.com",
+            id=12345,
+        )
         template_bot.skip_previously_forecasted_questions = False
-        questions = [
-            MetaculusApi.get_question_by_url(question_url)
-            for question_url in EXAMPLE_QUESTIONS
-        ]
+        questions = [dummy_question]
         forecast_reports = asyncio.run(
             template_bot.forecast_questions(questions, return_exceptions=True)
         )
