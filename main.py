@@ -103,6 +103,34 @@ class FallTemplateBot2025(ForecastBot):
     Additionally OpenRouter has large rate limits immediately on account creation
     """
 
+
+    def _llm_config_defaults(self) -> dict:
+        defaults = super()._llm_config_defaults()
+        # Override to suppress warnings for new forecaster models
+        forecaster_defaults = {
+            "forecaster1": {"model": "openrouter/moonshotai/kimi-k2-0905", **defaults},
+            "forecaster2": {"model": "openrouter/deepseek/deepseek-r1", **defaults},
+            "forecaster3": {"model": "openrouter/qwen/qwen3-max", **defaults},
+            "forecaster4": {"model": "openrouter/mistralai/mistral-large", **defaults},
+            "forecaster5": {"model": "openrouter/bytedance/seed-oss-36b-instruct", **defaults},
+            "forecaster6": {"model": "openrouter/microsoft/wizardlm-2-8x22b", **defaults},
+        }
+        return {**defaults, **forecaster_defaults}
+
+    # Define model names for logging
+    forecaster_models = {
+        "forecaster1": "openrouter/moonshotai/kimi-k2-0905",
+        "forecaster2": "openrouter/deepseek/deepseek-r1",
+        "forecaster3": "openrouter/qwen/qwen3-max",
+        "forecaster4": "openrouter/mistralai/mistral-large",
+        "forecaster5": "openrouter/bytedance/seed-oss-36b-instruct",
+        "forecaster6": "openrouter/microsoft/wizardlm-2-8x22b",
+        "synthesizer": "openai/gpt-4o",
+        "parser": "openai/gpt-4o-mini",
+        "researcher": "openai/gpt-4o-mini",
+        "summarizer": "openai/gpt-4o-mini",
+    }
+    
     _max_concurrent_questions = (
         1  # Set this to whatever works for your search-provider/ai-model rate limits
     )
@@ -203,17 +231,69 @@ class FallTemplateBot2025(ForecastBot):
             The last thing you write is your final answer as: "Probability: ZZ%", 0-100
             """
         )
-        reasoning = await self.get_llm("default", "llm").invoke(prompt)
-        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
-        binary_prediction: BinaryPrediction = await structure_output(
-            reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
-        )
-        decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
+        
+        # Define forecaster models
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
+        individual_reasonings = []
+        individual_predictions = []
 
-        logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {decimal_pred}"
+        # Generate individual forecasts
+        for key in forecaster_keys:
+            llm = self.get_llm(key, "llm")
+            reasoning = await llm.invoke(prompt)
+            logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
+            binary_prediction: BinaryPrediction = await structure_output(
+                reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
+            )
+            decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
+            individual_reasonings.append(reasoning)
+            individual_predictions.append(decimal_pred)
+            model_name = self.forecaster_models.get(key, 'unknown')
+            logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
+
+        # Synthesize final prediction
+        synth_prompt = clean_indents(
+            f"""
+            You are a synthesizer comparing multiple forecaster outputs for a binary question.
+
+            Question: {question.question_text}
+
+            Individual forecasts:
+            """
         )
-        return ReasonedPrediction(prediction_value=decimal_pred, reasoning=reasoning)
+        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
+            synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred}\n"
+
+        synth_prompt += clean_indents(
+            f"""
+            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced probability.
+
+            Output only the final probability as: "Probability: ZZ%", 0-100
+            """
+        )
+
+        synth_llm = self.get_llm("synthesizer", "llm")
+        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+        synth_reasoning = await synth_llm.invoke(synth_prompt)
+        logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
+        parser_llm = self.get_llm("parser", "llm")
+        parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+        final_binary_prediction: BinaryPrediction = await structure_output(
+            synth_reasoning, BinaryPrediction, model=parser_llm
+        )
+        final_decimal_pred = max(0.01, min(0.99, final_binary_prediction.prediction_in_decimal))
+        logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_decimal_pred}")
+
+        # Combined reasoning with model names
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
+        combined_reasoning_parts = []
+        for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
+            model_name = self.forecaster_models.get(key, 'unknown')
+            combined_reasoning_parts.append(f"Forecaster {i+1} ({key}: {model_name}): {reasoning}")
+        combined_reasoning_parts.append(f"Synthesis (using {self.forecaster_models.get('synthesizer', 'unknown')}): {synth_reasoning}")
+        combined_reasoning = "\n\n".join(combined_reasoning_parts)
+
+        return ReasonedPrediction(prediction_value=final_decimal_pred, reasoning=combined_reasoning)
 
     async def _run_forecast_on_multiple_choice(
         self, question: MultipleChoiceQuestion, research: str
@@ -262,19 +342,79 @@ class FallTemplateBot2025(ForecastBot):
             The text you are parsing may prepend these options with some variation of "Option" which you should remove if not part of the option names I just gave you.
             """
         )
-        reasoning = await self.get_llm("default", "llm").invoke(prompt)
-        logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
-        predicted_option_list: PredictedOptionList = await structure_output(
-            text_to_structure=reasoning,
+        
+        # Define forecaster models
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
+        individual_reasonings = []
+        individual_predictions = []
+
+        # Generate individual forecasts
+        for key in forecaster_keys:
+            llm = self.get_llm(key, "llm")
+            reasoning = await llm.invoke(prompt)
+            logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
+            predicted_option_list: PredictedOptionList = await structure_output(
+                text_to_structure=reasoning,
+                output_type=PredictedOptionList,
+                model=self.get_llm("parser", "llm"),
+                additional_instructions=parsing_instructions,
+            )
+            individual_reasonings.append(reasoning)
+            individual_predictions.append(predicted_option_list)
+            model_name = self.forecaster_models.get(key, 'unknown')
+            logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {predicted_option_list}")
+
+        # Synthesize final prediction
+        synth_prompt = clean_indents(
+            f"""
+            You are a synthesizer comparing multiple forecaster outputs for a multiple choice question.
+
+            Question: {question.question_text}
+            Options: {question.options}
+
+            Individual forecasts:
+            """
+        )
+        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
+            synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred}\n"
+
+        synth_prompt += clean_indents(
+            f"""
+            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced probability distribution.
+
+            Output only the final probabilities for the N options in this order {question.options} as:
+            Option_A: Probability_A
+            Option_B: Probability_B
+            ...
+            Option_N: Probability_N
+            """
+        )
+
+        synth_llm = self.get_llm("synthesizer", "llm")
+        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+        synth_reasoning = await synth_llm.invoke(synth_prompt)
+        logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
+        parser_llm = self.get_llm("parser", "llm")
+        parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+        final_predicted_option_list: PredictedOptionList = await structure_output(
+            text_to_structure=synth_reasoning,
             output_type=PredictedOptionList,
-            model=self.get_llm("parser", "llm"),
+            model=parser_llm,
             additional_instructions=parsing_instructions,
         )
-        logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {predicted_option_list}"
-        )
+        logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_predicted_option_list}")
+
+        # Combined reasoning with model names
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
+        combined_reasoning_parts = []
+        for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
+            model_name = self.forecaster_models.get(key, 'unknown')
+            combined_reasoning_parts.append(f"Forecaster {i+1} ({key}: {model_name}): {reasoning}")
+        combined_reasoning_parts.append(f"Synthesis (using {self.forecaster_models.get('synthesizer', 'unknown')}): {synth_reasoning}")
+        combined_reasoning = "\n\n".join(combined_reasoning_parts)
+
         return ReasonedPrediction(
-            prediction_value=predicted_option_list, reasoning=reasoning
+            prediction_value=final_predicted_option_list, reasoning=combined_reasoning
         )
 
     async def _run_forecast_on_numeric(
@@ -334,7 +474,7 @@ class FallTemplateBot2025(ForecastBot):
             """
         )
         # Define forecaster models
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6", "forecaster7"]
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
         individual_reasonings = []
         individual_predictions = []
 
@@ -349,7 +489,8 @@ class FallTemplateBot2025(ForecastBot):
             prediction = NumericDistribution.from_question(percentile_list, question)
             individual_reasonings.append(reasoning)
             individual_predictions.append(prediction)
-            logger.info(f"Forecast from {key} for URL {question.page_url}: {prediction.declared_percentiles}")
+            model_name = self.forecaster_models.get(key, 'unknown')
+            logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {prediction.declared_percentiles}")
 
         # Synthesize final prediction
         synth_prompt = clean_indents(
@@ -379,16 +520,25 @@ class FallTemplateBot2025(ForecastBot):
         )
 
         synth_llm = self.get_llm("synthesizer", "llm")
+        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
         synth_reasoning = await synth_llm.invoke(synth_prompt)
-        logger.info(f"Synthesized reasoning for URL {question.page_url}: {synth_reasoning}")
+        logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
+        parser_llm = self.get_llm("parser", "llm")
+        parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
         final_percentile_list: list[Percentile] = await structure_output(
-            synth_reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+            synth_reasoning, list[Percentile], model=parser_llm
         )
         final_prediction = NumericDistribution.from_question(final_percentile_list, question)
-        logger.info(f"Synthesized final prediction for URL {question.page_url}: {final_prediction.declared_percentiles}")
+        logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_prediction.declared_percentiles}")
 
-        # Combined reasoning
-        combined_reasoning = "\n\n".join([f"Forecaster {i+1}: {r}" for i, r in enumerate(individual_reasonings)]) + f"\n\nSynthesis: {synth_reasoning}"
+        # Combined reasoning with model names
+        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
+        combined_reasoning_parts = []
+        for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
+            model_name = self.forecaster_models.get(key, 'unknown')
+            combined_reasoning_parts.append(f"Forecaster {i+1} ({key}: {model_name}): {reasoning}")
+        combined_reasoning_parts.append(f"Synthesis (using {self.forecaster_models.get('synthesizer', 'unknown')}): {synth_reasoning}")
+        combined_reasoning = "\n\n".join(combined_reasoning_parts)
 
         return ReasonedPrediction(prediction_value=final_prediction, reasoning=combined_reasoning)
 
@@ -426,6 +576,16 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
+    # Add file handler for markdown output with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f'forecastoutput_{timestamp}.md'
+    file_handler = logging.FileHandler(filename, mode='w')
+    file_handler.setLevel(logging.INFO)
+    markdown_formatter = logging.Formatter('## %(asctime)s\n%(name)s - %(levelname)s\n%(message)s\n\n---\n')
+    file_handler.setFormatter(markdown_formatter)
+    logger.addHandler(file_handler)
+    print(f"Logging to {filename}")
+
     # Load .env
     from dotenv import load_dotenv
     load_dotenv()
@@ -457,9 +617,10 @@ if __name__ == "__main__":
         "test_questions",
     ], "Invalid run mode"
 
+    # Initialize the bot with reduced DeepSeek models
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=7,  # Adjusted for 7 models
+        predictions_per_research_report=6,  # Adjusted for 6 models
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
@@ -477,13 +638,12 @@ if __name__ == "__main__":
                 timeout=60,
                 allowed_tries=2,
             ),
-            "forecaster1": "openai/gpt-4o-mini",
-            "forecaster2": "openai/gpt-4o-mini",
-            "forecaster3": "openai/gpt-4o-mini",
-            "forecaster4": "openai/gpt-4o-mini",
-            "forecaster5": "openai/gpt-4o-mini",
-            "forecaster6": "openai/gpt-4o-mini",
-            "forecaster7": "openai/gpt-4o-mini",
+            "forecaster1": "openrouter/moonshotai/kimi-k2-0905",
+            "forecaster2": "openrouter/deepseek/deepseek-r1",  # Most advanced DeepSeek model
+            "forecaster3": "openrouter/qwen/qwen3-max",
+            "forecaster4": "openrouter/mistralai/mistral-large",
+            "forecaster5": "openrouter/bytedance/seed-oss-36b-instruct",
+            "forecaster6": "openrouter/microsoft/wizardlm-2-8x22b",
             "parser": "openai/gpt-4o-mini",
             "researcher": "openai/gpt-4o-mini",
             "summarizer": "openai/gpt-4o-mini",
