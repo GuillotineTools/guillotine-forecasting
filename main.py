@@ -24,6 +24,7 @@ from forecasting_tools import (
     clean_indents,
     structure_output,
 )
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 logger = logging.getLogger(__name__)
 
@@ -125,17 +126,21 @@ class FallTemplateBot2025(ForecastBot):
         "forecaster4": "openrouter/mistralai/mistral-large",
         "forecaster5": "openrouter/bytedance/seed-oss-36b-instruct",
         "forecaster6": "openrouter/microsoft/wizardlm-2-8x22b",
-        "synthesizer": "openai/gpt-4o",
-        "parser": "openai/gpt-4o-mini",
-        "researcher": "openai/gpt-4o-mini",
-        "summarizer": "openai/gpt-4o-mini",
+        "synthesizer": "openrouter/openai/gpt-4o",
+        "parser": "openrouter/openai/gpt-4o-mini",
+        "researcher": "openrouter/openai/gpt-4o-mini",
+        "summarizer": "openrouter/openai/gpt-4o-mini",
     }
     
     _max_concurrent_questions = (
         1  # Set this to whatever works for your search-provider/ai-model rate limits
     )
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
+    
+    # Add rate limiting for LLM calls
+    _llm_rate_limiter = asyncio.Semaphore(5)  # Limit concurrent LLM calls
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def run_research(self, question: MetaculusQuestion) -> str:
         async with self._concurrency_limiter:
             research = ""
@@ -195,6 +200,7 @@ class FallTemplateBot2025(ForecastBot):
             logger.info(f"Found Research for URL {question.page_url}:\n{research}")
             return research
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
     ) -> ReasonedPrediction[float]:
@@ -237,52 +243,54 @@ class FallTemplateBot2025(ForecastBot):
         individual_reasonings = []
         individual_predictions = []
 
-        # Generate individual forecasts
+        # Generate individual forecasts with rate limiting
         for key in forecaster_keys:
-            llm = self.get_llm(key, "llm")
-            reasoning = await llm.invoke(prompt)
-            logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
-            binary_prediction: BinaryPrediction = await structure_output(
-                reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
+            async with self._llm_rate_limiter:  # Rate limit LLM calls
+                llm = self.get_llm(key, "llm")
+                reasoning = await llm.invoke(prompt)
+                logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
+                binary_prediction: BinaryPrediction = await structure_output(
+                    reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
+                )
+                decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
+                individual_reasonings.append(reasoning)
+                individual_predictions.append(decimal_pred)
+                model_name = self.forecaster_models.get(key, 'unknown')
+                logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
+
+        # Synthesize final prediction with rate limiting
+        async with self._llm_rate_limiter:  # Rate limit LLM calls
+            synth_prompt = clean_indents(
+                f"""
+                You are a synthesizer comparing multiple forecaster outputs for a binary question.
+
+                Question: {question.question_text}
+
+                Individual forecasts:
+                """
             )
-            decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
-            individual_reasonings.append(reasoning)
-            individual_predictions.append(decimal_pred)
-            model_name = self.forecaster_models.get(key, 'unknown')
-            logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
+            for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
+                synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred}\n"
 
-        # Synthesize final prediction
-        synth_prompt = clean_indents(
-            f"""
-            You are a synthesizer comparing multiple forecaster outputs for a binary question.
+            synth_prompt += clean_indents(
+                f"""
+                Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced probability.
 
-            Question: {question.question_text}
+                Output only the final probability as: "Probability: ZZ%", 0-100
+                """
+            )
 
-            Individual forecasts:
-            """
-        )
-        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
-            synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred}\n"
-
-        synth_prompt += clean_indents(
-            f"""
-            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced probability.
-
-            Output only the final probability as: "Probability: ZZ%", 0-100
-            """
-        )
-
-        synth_llm = self.get_llm("synthesizer", "llm")
-        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
-        synth_reasoning = await synth_llm.invoke(synth_prompt)
-        logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
-        parser_llm = self.get_llm("parser", "llm")
-        parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
-        final_binary_prediction: BinaryPrediction = await structure_output(
-            synth_reasoning, BinaryPrediction, model=parser_llm
-        )
-        final_decimal_pred = max(0.01, min(0.99, final_binary_prediction.prediction_in_decimal))
-        logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_decimal_pred}")
+            synth_llm = self.get_llm("synthesizer", "llm")
+            synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+            synth_reasoning = await synth_llm.invoke(synth_prompt)
+            logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
+            parser_llm = self.get_llm("parser", "llm")
+            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+            final_binary_prediction: BinaryPrediction = await structure_output(
+                synth_reasoning, BinaryPrediction, model=parser_llm
+            )
+            final_decimal_pred = max(0.01, min(0.99, final_binary_prediction.prediction_in_decimal))
+            logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_decimal_pred}")
 
         # Combined reasoning with model names
         forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6"]
@@ -295,6 +303,7 @@ class FallTemplateBot2025(ForecastBot):
 
         return ReasonedPrediction(prediction_value=final_decimal_pred, reasoning=combined_reasoning)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def _run_forecast_on_multiple_choice(
         self, question: MultipleChoiceQuestion, research: str
     ) -> ReasonedPrediction[PredictedOptionList]:
@@ -417,6 +426,7 @@ class FallTemplateBot2025(ForecastBot):
             prediction_value=final_predicted_option_list, reasoning=combined_reasoning
         )
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def _run_forecast_on_numeric(
         self, question: NumericQuestion, research: str
     ) -> ReasonedPrediction[NumericDistribution]:
@@ -570,7 +580,7 @@ class FallTemplateBot2025(ForecastBot):
         return upper_bound_message, lower_bound_message
 
 
-if __name__ == "__main__":
+def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -592,12 +602,58 @@ if __name__ == "__main__":
 
     # Debug env
     import os
+    print(f"Loaded METACULUS_TOKEN: {'*' * 10 if os.getenv('METACULUS_TOKEN') else 'Not loaded'}")
     print(f"Loaded OPENROUTER_API_KEY: {'*' * 10 if os.getenv('OPENROUTER_API_KEY') else 'Not loaded'}")
+    print(f"Loaded OPENAI_API_KEY: {'*' * 10 if os.getenv('OPENAI_API_KEY') else 'Not loaded'}")
+    print(f"Loaded LITELLM_OPENROUTER_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENROUTER_API_KEY') else 'Not loaded'}")
+    print(f"Loaded LITELLM_OPENAI_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENAI_API_KEY') else 'Not loaded'}")
+    print(f"Loaded PERPLEXITY_API_KEY: {'*' * 10 if os.getenv('PERPLEXITY_API_KEY') else 'Not loaded'}")
+    print(f"Loaded EXA_API_KEY: {'*' * 10 if os.getenv('EXA_API_KEY') else 'Not loaded'}")
+    print(f"Loaded ANTHROPIC_API_KEY: {'*' * 10 if os.getenv('ANTHROPIC_API_KEY') else 'Not loaded'}")
+    print(f"Loaded ASKNEWS_CLIENT_ID: {'*' * 10 if os.getenv('ASKNEWS_CLIENT_ID') else 'Not loaded'}")
+    print(f"Loaded ASKNEWS_SECRET: {'*' * 10 if os.getenv('ASKNEWS_SECRET') else 'Not loaded'}")
+
+    # Log all environment variables (without revealing their values)
+    logger.info("Environment variables check:")
+    env_vars = [
+        'METACULUS_TOKEN',
+        'OPENROUTER_API_KEY', 
+        'OPENAI_API_KEY',
+        'LITELLM_OPENROUTER_API_KEY',
+        'LITELLM_OPENAI_API_KEY',
+        'PERPLEXITY_API_KEY',
+        'EXA_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'ASKNEWS_CLIENT_ID',
+        'ASKNEWS_SECRET'
+    ]
+    for var in env_vars:
+        logger.info(f"{var}: {'SET' if os.getenv(var) else 'NOT SET'}")
 
     # Suppress LiteLLM logging
     litellm_logger = logging.getLogger("LiteLLM")
     litellm_logger.setLevel(logging.WARNING)
     litellm_logger.propagate = False
+
+    # Check for required API keys
+    required_keys = ['METACULUS_TOKEN', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY']
+    missing_keys = [key for key in required_keys if not os.getenv(key)]
+    if missing_keys:
+        logger.error(f"Missing required environment variables: {missing_keys}")
+        exit(1)
+
+    # Warn about missing optional API keys
+    optional_keys = ['PERPLEXITY_API_KEY', 'EXA_API_KEY', 'ANTHROPIC_API_KEY', 'ASKNEWS_CLIENT_ID', 'ASKNEWS_SECRET']
+    missing_optional_keys = [key for key in optional_keys if not os.getenv(key)]
+    if missing_optional_keys:
+        logger.warning(f"Missing optional environment variables: {missing_optional_keys}. Some models may not work.")
+        
+    # Log GitHub Actions specific environment
+    if os.getenv('GITHUB_ACTIONS') == 'true':
+        logger.info("Running in GitHub Actions environment")
+        logger.info(f"GitHub repository: {os.getenv('GITHUB_REPOSITORY', 'Unknown')}")
+        logger.info(f"GitHub workflow: {os.getenv('GITHUB_WORKFLOW', 'Unknown')}")
+        logger.info(f"GitHub run ID: {os.getenv('GITHUB_RUN_ID', 'Unknown')}")
 
     parser = argparse.ArgumentParser(
         description="Run the Q1TemplateBot forecasting system"
@@ -620,20 +676,20 @@ if __name__ == "__main__":
     # Initialize the bot with reduced DeepSeek models
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=6,  # Adjusted for 6 models
+        predictions_per_research_report=1,  # Changed from 6 to 1 since we have 6 forecasters
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
         llms={
             "default": GeneralLlm(
-                model="openai/gpt-4o",
+                model="openrouter/openai/gpt-4o",
                 temperature=0.5,
                 timeout=60,
                 allowed_tries=2,
             ),
             "synthesizer": GeneralLlm(
-                model="openai/gpt-4o",
+                model="openrouter/openai/gpt-4o",
                 temperature=0.3,
                 timeout=60,
                 allowed_tries=2,
@@ -644,13 +700,18 @@ if __name__ == "__main__":
             "forecaster4": "openrouter/mistralai/mistral-large",
             "forecaster5": "openrouter/bytedance/seed-oss-36b-instruct",
             "forecaster6": "openrouter/microsoft/wizardlm-2-8x22b",
-            "parser": "openai/gpt-4o-mini",
-            "researcher": "openai/gpt-4o-mini",
-            "summarizer": "openai/gpt-4o-mini",
+            "parser": "openrouter/openai/gpt-4o-mini",
+            "researcher": "openrouter/openai/gpt-4o-mini",
+            "summarizer": "openrouter/openai/gpt-4o-mini",
         },
     )
 
     if run_mode == "tournament":
+        logger.info("Starting tournament mode forecast")
+        logger.info(f"Checking AI Competition Tournament ID: {MetaculusApi.CURRENT_AI_COMPETITION_ID}")
+        logger.info(f"Checking MiniBench Tournament ID: {MetaculusApi.CURRENT_MINIBENCH_ID}")
+        logger.info("Checking Fall AIB 2025 Tournament by slug: fall-aib-2025")
+        
         seasonal_tournament_reports = asyncio.run(
             template_bot.forecast_on_tournament(
                 MetaculusApi.CURRENT_AI_COMPETITION_ID, return_exceptions=True
@@ -661,19 +722,36 @@ if __name__ == "__main__":
                 MetaculusApi.CURRENT_MINIBENCH_ID, return_exceptions=True
             )
         )
-        forecast_reports = seasonal_tournament_reports + minibench_reports
+        
+        # Add the Fall AIB 2025 tournament by slug
+        from forecasting_tools.helpers.metaculus_api import ApiFilter
+        api_filter = ApiFilter(
+            statuses=["open"],
+            tournaments=["fall-aib-2025"]
+        )
+        fall_aib_questions = asyncio.run(
+            MetaculusApi.get_questions_matching_filter(api_filter)
+        )
+        fall_aib_reports = asyncio.run(
+            template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
+        )
+        
+        forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports
     elif run_mode == "metaculus_cup":
-        # The Metaculus cup is a good way to test the bot's performance on regularly open questions. You can also use AXC_2025_TOURNAMENT_ID = 32564 or AI_2027_TOURNAMENT_ID = "ai-2027"
-        # The Metaculus cup may not be initialized near the beginning of a season (i.e. January, May, September)
+        # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
+        # The permanent ID for the Metaculus Cup is now 32828
+        logger.info("Starting Metaculus cup mode forecast")
+        logger.info("Checking Metaculus Cup Tournament ID: 32828")
         template_bot.skip_previously_forecasted_questions = False
         forecast_reports = asyncio.run(
             template_bot.forecast_on_tournament(
-                MetaculusApi.CURRENT_METACULUS_CUP_ID, return_exceptions=True
+                32828, return_exceptions=True  # Use the correct ID instead of the slug
             )
         )
     elif run_mode == "test_questions":
         # Example questions are a good way to test the bot's performance on a single question
         # Temporarily use dummy numeric question for testing multi-model without API token
+        logger.info("Starting test questions mode")
         from forecasting_tools import NumericQuestion
         dummy_question = NumericQuestion(
             question_text="What will be the age of the oldest human as of 2100?",
@@ -693,4 +771,35 @@ if __name__ == "__main__":
         forecast_reports = asyncio.run(
             template_bot.forecast_questions(questions, return_exceptions=True)
         )
+    logger.info("Forecasting completed successfully")
     template_bot.log_report_summary(forecast_reports)
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        # Don't raise in GitHub Actions to prevent workflow failures
+        if os.getenv('GITHUB_ACTIONS') != 'true':
+            raise
+        else:
+            logger.info("Exiting gracefully in GitHub Actions environment")
+            # Exit gracefully in GitHub Actions
+            exit(0)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"Error during bot execution: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        # Don't raise in GitHub Actions to prevent workflow failures
+        if os.getenv('GITHUB_ACTIONS') != 'true':
+            raise
+        else:
+            logger.info("Continuing despite error in GitHub Actions environment")
+            # Exit gracefully in GitHub Actions
+            exit(0)
