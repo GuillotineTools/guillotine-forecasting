@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 load_dotenv()
+import os
 import argparse
 import asyncio
 import logging
@@ -99,7 +100,7 @@ class FallTemplateBot2025(ForecastBot):
         capacity=2,
         refresh_rate=1,
     ) # Allows 1 request per second on average with a burst of 2 requests initially. Set this as a class variable
-    await self.rate_limiter.wait_till_able_to_acquire_resources(1) # 1 because it's consuming 1 request (use more if you are adding a token limit)
+    await self.rate_limiter.wait_till_able_to_acquire_resources(1) # 1 because it\s consuming 1 request (use more if you are adding a token limit) 
     ```
     Additionally OpenRouter has large rate limits immediately on account creation
     """
@@ -150,13 +151,13 @@ class FallTemplateBot2025(ForecastBot):
                 f"""
                 You are an assistant to a superforecaster.
                 The superforecaster will give you a question they intend to forecast on.
-                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information. Read the rules carefully to understand resolution criteria. Look for domain experts' opinions, base rates (outside view), consensus views, and any missing factors/influences the consensus may overlook. Seek information for Bayesian updating and Fermi-style breakdowns if applicable. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
+                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information. Read the rules carefully to understand resolution criteria. Look for domain experts\' opinions, base rates (outside view), consensus views, and any missing factors/influences the consensus may overlook. Seek information for Bayesian updating and Fermi-style breakdowns if applicable. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
                 You do not produce forecasts yourself.
 
                 Question:
                 {question.question_text}
 
-                This question's outcome will be determined by the specific criteria below:
+                This question\'s outcome will be determined by the specific criteria below:
                 {question.resolution_criteria}
 
                 {question.fine_print}
@@ -340,7 +341,7 @@ class FallTemplateBot2025(ForecastBot):
             The last thing you write is your final probabilities for the N options in this order {question.options} as:
             Option_A: Probability_A
             Option_B: Probability_B
-            ...
+            ... 
             Option_N: Probability_N
             """
         )
@@ -394,7 +395,7 @@ class FallTemplateBot2025(ForecastBot):
             Output only the final probabilities for the N options in this order {question.options} as:
             Option_A: Probability_A
             Option_B: Probability_B
-            ...
+            ... 
             Option_N: Probability_N
             """
         )
@@ -473,8 +474,7 @@ class FallTemplateBot2025(ForecastBot):
             You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns. Avoid overconfidence by using wide distributions. Don't be contrarian for its own sake, but look for information, factors, and influences that the consensus may be missing. Use nuanced weighting: anchor with outside view base rate to avoid anchoring bias, then move to inside view. Accurately update based on new information (Bayesianism). Use Fermi estimates by breaking down questions into series of easier steps. Read the rules carefully. Utilize different points of view (teams of superforecasters) and incorporate feedback. Forecast changes should be gradual. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
 
             The last thing you write is your final answer as:
-            "
-            Percentile 10: XX
+            "\n            Percentile 10: XX
             Percentile 20: XX
             Percentile 40: XX
             Percentile 60: XX
@@ -553,7 +553,8 @@ class FallTemplateBot2025(ForecastBot):
         return ReasonedPrediction(prediction_value=final_prediction, reasoning=combined_reasoning)
 
     def _create_upper_and_lower_bound_messages(
-        self, question: NumericQuestion
+        self,
+        question: NumericQuestion,
     ) -> tuple[str, str]:
         if question.nominal_upper_bound is not None:
             upper_bound_number = question.nominal_upper_bound
@@ -596,12 +597,9 @@ def main():
     logger.addHandler(file_handler)
     print(f"Logging to {filename}")
 
-    # Load .env
-    from dotenv import load_dotenv
-    load_dotenv()
+    
 
     # Debug env
-    import os
     print(f"Loaded METACULUS_TOKEN: {'*' * 10 if os.getenv('METACULUS_TOKEN') else 'Not loaded'}")
     print(f"Loaded OPENROUTER_API_KEY: {'*' * 10 if os.getenv('OPENROUTER_API_KEY') else 'Not loaded'}")
     print(f"Loaded OPENAI_API_KEY: {'*' * 10 if os.getenv('OPENAI_API_KEY') else 'Not loaded'}")
@@ -617,7 +615,7 @@ def main():
     logger.info("Environment variables check:")
     env_vars = [
         'METACULUS_TOKEN',
-        'OPENROUTER_API_KEY', 
+        'OPENROUTER_API_KEY',
         'OPENAI_API_KEY',
         'LITELLM_OPENROUTER_API_KEY',
         'LITELLM_OPENAI_API_KEY',
@@ -673,12 +671,14 @@ def main():
         "test_questions",
     ], "Invalid run mode"
 
+    publish_reports = run_mode != "test_questions"
+
     # Initialize the bot with reduced DeepSeek models
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
         predictions_per_research_report=1,  # Changed from 6 to 1 since we have 6 forecasters
         use_research_summary_to_forecast=False,
-        publish_reports_to_metaculus=True,
+        publish_reports_to_metaculus=publish_reports,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
         llms={
@@ -706,73 +706,75 @@ def main():
         },
     )
 
-    if run_mode == "tournament":
-        logger.info("Starting tournament mode forecast")
-        logger.info(f"Checking AI Competition Tournament ID: {MetaculusApi.CURRENT_AI_COMPETITION_ID}")
-        logger.info(f"Checking MiniBench Tournament ID: {MetaculusApi.CURRENT_MINIBENCH_ID}")
-        logger.info("Checking Fall AIB 2025 Tournament by slug: fall-aib-2025")
-        
-        seasonal_tournament_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                MetaculusApi.CURRENT_AI_COMPETITION_ID, return_exceptions=True
+    try:
+        if run_mode == "tournament":
+            logger.info("Starting tournament mode forecast")
+            logger.info(f"Checking AI Competition Tournament ID: {MetaculusApi.CURRENT_AI_COMPETITION_ID}")
+            logger.info(f"Checking MiniBench Tournament ID: {MetaculusApi.CURRENT_MINIBENCH_ID}")
+            logger.info("Checking Fall AIB 2025 Tournament by slug: fall-aib-2025")
+            
+            seasonal_tournament_reports = asyncio.run(
+                template_bot.forecast_on_tournament(
+                    MetaculusApi.CURRENT_AI_COMPETITION_ID, return_exceptions=True
+                )
             )
-        )
-        minibench_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                MetaculusApi.CURRENT_MINIBENCH_ID, return_exceptions=True
+            minibench_reports = asyncio.run(
+                template_bot.forecast_on_tournament(
+                    MetaculusApi.CURRENT_MINIBENCH_ID, return_exceptions=True
+                )
             )
-        )
-        
-        # Add the Fall AIB 2025 tournament by slug
-        from forecasting_tools.helpers.metaculus_api import ApiFilter
-        api_filter = ApiFilter(
-            statuses=["open"],
-            tournaments=["fall-aib-2025"]
-        )
-        fall_aib_questions = asyncio.run(
-            MetaculusApi.get_questions_matching_filter(api_filter)
-        )
-        fall_aib_reports = asyncio.run(
-            template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
-        )
-        
-        forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports
-    elif run_mode == "metaculus_cup":
-        # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
-        # The permanent ID for the Metaculus Cup is now 32828
-        logger.info("Starting Metaculus cup mode forecast")
-        logger.info("Checking Metaculus Cup Tournament ID: 32828")
-        template_bot.skip_previously_forecasted_questions = False
-        forecast_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                32828, return_exceptions=True  # Use the correct ID instead of the slug
+            
+            # Add the Fall AIB 2025 tournament by slug
+            from forecasting_tools.helpers.metaculus_api import ApiFilter
+            api_filter = ApiFilter(
+                statuses=["open"],
+                tournaments=["fall-aib-2025"]
             )
-        )
-    elif run_mode == "test_questions":
-        # Example questions are a good way to test the bot's performance on a single question
-        # Temporarily use dummy numeric question for testing multi-model without API token
-        logger.info("Starting test questions mode")
-        from forecasting_tools import NumericQuestion
-        dummy_question = NumericQuestion(
-            question_text="What will be the age of the oldest human as of 2100?",
-            background_info="The current record is 122 years. Advances in medicine may extend it.",
-            resolution_criteria="Official Guinness record.",
-            fine_print="",
-            unit_of_measure="years",
-            lower_bound=100,
-            upper_bound=200,
-            open_lower_bound=False,
-            open_upper_bound=False,
-            page_url="dummy://test.com",
-            id=12345,
-        )
-        template_bot.skip_previously_forecasted_questions = False
-        questions = [dummy_question]
-        forecast_reports = asyncio.run(
-            template_bot.forecast_questions(questions, return_exceptions=True)
-        )
-    logger.info("Forecasting completed successfully")
-    template_bot.log_report_summary(forecast_reports)
+            fall_aib_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(api_filter)
+            )
+            fall_aib_reports = asyncio.run(
+                template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
+            )
+            
+            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports
+        elif run_mode == "metaculus_cup":
+            # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
+            # The permanent ID for the Metaculus Cup is now 32828
+            logger.info("Starting Metaculus cup mode forecast")
+            logger.info("Checking Metaculus Cup Tournament ID: 32828")
+            template_bot.skip_previously_forecasted_questions = False
+            forecast_reports = asyncio.run(
+                template_bot.forecast_on_tournament(
+                    32828, return_exceptions=True  # Use the correct ID instead of the slug
+                )
+            )
+        elif run_mode == "test_questions":
+            # Example questions are a good way to test the bot's performance on a single question
+            # Temporarily use dummy numeric question for testing multi-model without API token
+            logger.info("Starting test questions mode")
+            from forecasting_tools import NumericQuestion
+            dummy_question = NumericQuestion(
+                question_text="What will be the age of the oldest human as of 2100?",
+                background_info="The current record is 122 years. Advances in medicine may extend it.",
+                resolution_criteria="Official Guinness record.",
+                fine_print="",
+                unit_of_measure="years",
+                lower_bound=100,
+                upper_bound=200,
+                open_lower_bound=False,
+                open_upper_bound=False,
+                page_url="dummy://test.com",
+                id=12345,
+            )
+            template_bot.skip_previously_forecasted_questions = False
+            questions = [dummy_question]
+            forecast_reports = asyncio.run(
+                template_bot.forecast_questions(questions, return_exceptions=True)
+            )
+        
+        logger.info("Forecasting completed successfully")
+        template_bot.log_report_summary(forecast_reports)
 
     except Exception as e:
         logger.error(f"An unexpected error occurred: {str(e)}")
@@ -801,5 +803,3 @@ if __name__ == "__main__":
             raise
         else:
             logger.info("Continuing despite error in GitHub Actions environment")
-            # Exit gracefully in GitHub Actions
-            exit(0)
