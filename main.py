@@ -634,7 +634,7 @@ def main():
     litellm_logger.propagate = False
 
     # Check for required API keys
-    required_keys = ['METACULUS_TOKEN', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY']
+    required_keys = ['METACULUS_TOKEN', 'OPENROUTER_API_KEY']
     missing_keys = [key for key in required_keys if not os.getenv(key)]
     if missing_keys:
         logger.error(f"Missing required environment variables: {missing_keys}")
