@@ -30,112 +30,53 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 logger = logging.getLogger(__name__)
 
 
-class FallTemplateBot2025(ForecastBot):
+class MultiKeyTemplateBot2025(ForecastBot):
     """
-    This is a copy of the template bot for Fall 2025 Metaculus AI Tournament.
-    This bot is what is used by Metaculus in our benchmark, but is also provided as a template for new bot makers.
-    This template is given as-is, and though we have covered most test cases
-    in forecasting-tools it may be worth double checking key components locally.
-
-    Main changes since Q2:
-    - An LLM now parses the final forecast output (rather than programmatic parsing)
-    - Added resolution criteria and fine print explicitly to the research prompt
-    - Previously in the prompt, nothing about upper/lower bound was shown when the bounds were open. Now a suggestion is made when this is the case.
-    - Support for nominal bounds was added (i.e. when there are discrete questions and normal upper/lower bounds are not as intuitive)
-
-    The main entry point of this bot is `forecast_on_tournament` in the parent class.
-    See the script at the bottom of the file for more details on how to run the bot.
-    Ignoring the finer details, the general flow is:
-    - Load questions from Metaculus
-    - For each question
-        - Execute run_research a number of times equal to research_reports_per_question
-        - Execute respective run_forecast function `predictions_per_research_report * research_reports_per_question` times
-        - Aggregate the predictions
-        - Submit prediction (if publish_reports_to_metaculus is True)
-    - Return a list of ForecastReport objects
-
-    Only the research and forecast functions need to be implemented in ForecastBot subclasses,
-    though you may want to override other ones.
-    In this example, you can change the prompts to be whatever you want since,
-    structure_output uses an LLMto intelligently reformat the output into the needed structure.
-
-    By default (i.e. 'tournament' mode), when you run this script, it will forecast on any open questions for the
-    MiniBench and Seasonal AIB tournaments. If you want to forecast on only one or the other, you can remove one
-    of them from the 'tournament' mode code at the bottom of the file.
-
-    You can experiment with what models work best with your bot by using the `llms` parameter when initializing the bot.
-    You can initialize the bot with any number of models. For example,
-    ```python
-    my_bot = MyBot(
-        ...
-        llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
-            "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
-                temperature=0.3,
-                timeout=40,
-                allowed_tries=2,
-            ),
-            "summarizer": "openai/gpt-4o-mini",
-            "researcher": "asknews/deep-research/low",
-            "parser": "openai/gpt-4o-mini",
-        },
-    )
-    ```
-
-    Then you can access the model in custom functions like this:
-    ```python
-    research_strategy = self.get_llm("researcher", "model_name"
-    if research_strategy == "asknews/deep-research/low":
-        ...
-    # OR
-    summarizer = await self.get_llm("summarizer", "model_name").invoke(prompt)
-    # OR
-    reasoning = await self.get_llm("default", "llm").invoke(prompt)
-    ```
-
-    If you end up having trouble with rate limits and want to try a more sophisticated rate limiter try:
-    ```python
-    from forecasting_tools import RefreshingBucketRateLimiter
-    rate_limiter = RefreshingBucketRateLimiter(
-        capacity=2,
-        refresh_rate=1,
-    ) # Allows 1 request per second on average with a burst of 2 requests initially. Set this as a class variable
-    await self.rate_limiter.wait_till_able_to_acquire_resources(1) # 1 because it\s consuming 1 request (use more if you are adding a token limit) 
-    ```
-    Additionally OpenRouter has large rate limits immediately on account creation
+    Template bot that uses different API keys for different models:
+    - Original key for OpenAI/GPT models
+    - New key for DeepSeek and Kimi models
     """
-
 
     def _llm_config_defaults(self) -> dict:
         defaults = super()._llm_config_defaults()
-        # Override to suppress warnings for new forecaster models
+        
+        # Configure models with appropriate API keys
+        original_key = os.getenv('OPENROUTER_API_KEY')  # Your original key for GPT models
+        new_key = "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"  # Your new key for DeepSeek/Kimi
+        
         forecaster_defaults = {
-            "forecaster1": {"model": "openrouter/openai/gpt-4o", **defaults},
-            "forecaster2": {"model": "openrouter/deepseek/deepseek-r1", **defaults},
-            "forecaster3": {"model": "openrouter/moonshotai/kimi-k2-0905", **defaults},
-            "forecaster4": {"model": "openrouter/openai/gpt-4o", **defaults},  # Synthesizer
+            # Models using original key (GPT models)
+            "forecaster1": {"model": "openrouter/openai/gpt-4o-mini", "api_key": original_key, **defaults},
+            "forecaster2": {"model": "openrouter/openai/gpt-4o", "api_key": original_key, **defaults},
+            "forecaster3": {"model": "openrouter/openai/gpt-4o-mini", "api_key": original_key, **defaults},
+            "forecaster4": {"model": "openrouter/openai/gpt-4o", "api_key": original_key, **defaults},
+            "forecaster5": {"model": "openrouter/openai/gpt-4o-mini", "api_key": original_key, **defaults},
+            "forecaster6": {"model": "openrouter/openai/gpt-4o", "api_key": original_key, **defaults},
+            # Models using new key (DeepSeek/Kimi models)
+            "deepseek_forecaster": {"model": "openrouter/deepseek/deepseek-chat-v3-0324", "api_key": new_key, **defaults},
+            "kimi_forecaster": {"model": "openrouter/moonshotai/kimi-k2-0905", "api_key": new_key, **defaults},
         }
         return {**defaults, **forecaster_defaults}
 
     # Define model names for logging
     forecaster_models = {
-        "forecaster1": "openrouter/openai/gpt-4o",
-        "forecaster2": "openrouter/deepseek/deepseek-r1",
-        "forecaster3": "openrouter/moonshotai/kimi-k2-0905",
-        "forecaster4": "openrouter/openai/gpt-4o",  # Synthesizer
+        "forecaster1": "openrouter/openai/gpt-4o-mini",
+        "forecaster2": "openrouter/openai/gpt-4o",
+        "forecaster3": "openrouter/openai/gpt-4o-mini",
+        "forecaster4": "openrouter/openai/gpt-4o",
+        "forecaster5": "openrouter/openai/gpt-4o-mini",
+        "forecaster6": "openrouter/openai/gpt-4o",
+        "deepseek_forecaster": "openrouter/deepseek/deepseek-chat-v3-0324",
+        "kimi_forecaster": "openrouter/moonshotai/kimi-k2-0905",
         "synthesizer": "openrouter/openai/gpt-4o",
         "parser": "openrouter/openai/gpt-4o-mini",
         "researcher": "openrouter/openai/gpt-4o-mini",
         "summarizer": "openrouter/openai/gpt-4o-mini",
     }
     
-    _max_concurrent_questions = (
-        1  # Set this to whatever works for your search-provider/ai-model rate limits
-    )
+    _max_concurrent_questions = 1
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
-    
-    # Add rate limiting for LLM calls
-    _llm_rate_limiter = asyncio.Semaphore(5)  # Limit concurrent LLM calls
+    _llm_rate_limiter = asyncio.Semaphore(5)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def run_research(self, question: MetaculusQuestion) -> str:
@@ -147,13 +88,13 @@ class FallTemplateBot2025(ForecastBot):
                 f"""
                 You are an assistant to a superforecaster.
                 The superforecaster will give you a question they intend to forecast on.
-                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information. Read the rules carefully to understand resolution criteria. Look for domain experts\' opinions, base rates (outside view), consensus views, and any missing factors/influences the consensus may overlook. Seek information for Bayesian updating and Fermi-style breakdowns if applicable. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
+                To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information. Read the rules carefully to understand resolution criteria. Look for domain experts' opinions, base rates (outside view), consensus views, and any missing factors/influences the consensus may overlook. Seek information for Bayesian updating and Fermi-style breakdowns if applicable. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
                 You do not produce forecasts yourself.
 
                 Question:
                 {question.question_text}
 
-                This question\'s outcome will be determined by the specific criteria below:
+                This question's outcome will be determined by the specific criteria below:
                 {question.resolution_criteria}
 
                 {question.fine_print}
@@ -211,12 +152,10 @@ class FallTemplateBot2025(ForecastBot):
             Question background:
             {question.background_info}
 
-
             This question's outcome will be determined by the specific criteria below. These criteria have not yet been satisfied:
             {question.resolution_criteria}
 
             {question.fine_print}
-
 
             Your research assistant says:
             {research}
@@ -235,14 +174,17 @@ class FallTemplateBot2025(ForecastBot):
             """
         )
         
-        # Define forecaster models (only 4 forecasters)
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4"]
+        # Define forecaster models (mix of GPT and specialized models)
+        forecaster_keys = [
+            "forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6",
+            "deepseek_forecaster", "kimi_forecaster"
+        ]
         individual_reasonings = []
         individual_predictions = []
 
         # Generate individual forecasts with rate limiting
         for key in forecaster_keys:
-            async with self._llm_rate_limiter:  # Rate limit LLM calls
+            async with self._llm_rate_limiter:
                 llm = self.get_llm(key, "llm")
                 reasoning = await llm.invoke(prompt)
                 logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
@@ -256,7 +198,7 @@ class FallTemplateBot2025(ForecastBot):
                 logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
 
         # Synthesize final prediction with rate limiting
-        async with self._llm_rate_limiter:  # Rate limit LLM calls
+        async with self._llm_rate_limiter:
             synth_prompt = clean_indents(
                 f"""
                 You are a synthesizer comparing multiple forecaster outputs for a binary question.
@@ -290,7 +232,6 @@ class FallTemplateBot2025(ForecastBot):
             logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_decimal_pred}")
 
         # Combined reasoning with model names
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4"]
         combined_reasoning_parts = []
         for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
             model_name = self.forecaster_models.get(key, 'unknown')
@@ -313,14 +254,12 @@ class FallTemplateBot2025(ForecastBot):
 
             The options are: {question.options}
 
-
             Background:
             {question.background_info}
 
             {question.resolution_criteria}
 
             {question.fine_print}
-
 
             Your research assistant says:
             {research}
@@ -349,8 +288,11 @@ class FallTemplateBot2025(ForecastBot):
             """
         )
         
-        # Define forecaster models (only 4 forecasters)
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4"]
+        # Define forecaster models (mix of GPT and specialized models)
+        forecaster_keys = [
+            "forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6",
+            "deepseek_forecaster", "kimi_forecaster"
+        ]
         individual_reasonings = []
         individual_predictions = []
 
@@ -411,7 +353,6 @@ class FallTemplateBot2025(ForecastBot):
         logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_predicted_option_list}")
 
         # Combined reasoning with model names
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4"]
         combined_reasoning_parts = []
         for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
             model_name = self.forecaster_models.get(key, 'unknown')
@@ -470,7 +411,57 @@ class FallTemplateBot2025(ForecastBot):
             You remind yourself that good forecasters are humble and set wide 90/10 confidence intervals to account for unknown unknowns. Avoid overconfidence by using wide distributions. Don't be contrarian for its own sake, but look for information, factors, and influences that the consensus may be missing. Use nuanced weighting: anchor with outside view base rate to avoid anchoring bias, then move to inside view. Accurately update based on new information (Bayesianism). Use Fermi estimates by breaking down questions into series of easier steps. Read the rules carefully. Utilize different points of view (teams of superforecasters) and incorporate feedback. Forecast changes should be gradual. Be actively open-minded and avoid biases like scope insensitivity or need for narrative coherence.
 
             The last thing you write is your final answer as:
-            "\n            Percentile 10: XX
+            "
+            Percentile 10: XX
+            Percentile 20: XX
+            Percentile 40: XX
+            Percentile 60: XX
+            Percentile 80: XX
+            Percentile 90: XX
+            "
+            """
+        )
+        # Define forecaster models (mix of GPT and specialized models)
+        forecaster_keys = [
+            "forecaster1", "forecaster2", "forecaster3", "forecaster4", "forecaster5", "forecaster6",
+            "deepseek_forecaster", "kimi_forecaster"
+        ]
+        individual_reasonings = []
+        individual_predictions = []
+
+        # Generate individual forecasts
+        for key in forecaster_keys:
+            llm = self.get_llm(key, "llm")
+            reasoning = await llm.invoke(prompt)
+            logger.info(f"Reasoning from {key} for URL {question.page_url}: {reasoning}")
+            percentile_list: list[Percentile] = await structure_output(
+                reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+            )
+            prediction = NumericDistribution.from_question(percentile_list, question)
+            individual_reasonings.append(reasoning)
+            individual_predictions.append(prediction)
+            model_name = self.forecaster_models.get(key, 'unknown')
+            logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {prediction.declared_percentiles}")
+
+        # Synthesize final prediction
+        synth_prompt = clean_indents(
+            f"""
+            You are a synthesizer comparing multiple forecaster outputs for a numeric question.
+
+            Question: {question.question_text}
+
+            Individual forecasts:
+            """
+        )
+        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):
+            synth_prompt += f"\nForecaster {i}: Reasoning: {reason}\nPrediction: {pred.declared_percentiles}\n"
+
+        synth_prompt += clean_indents(
+            f"""
+            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced distribution.
+
+            Output only the final percentiles:
+            Percentile 10: XX
             Percentile 20: XX
             Percentile 40: XX
             Percentile 60: XX
@@ -492,7 +483,6 @@ class FallTemplateBot2025(ForecastBot):
         logger.info(f"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_prediction.declared_percentiles}")
 
         # Combined reasoning with model names
-        forecaster_keys = ["forecaster1", "forecaster2", "forecaster3", "forecaster4"]
         combined_reasoning_parts = []
         for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):
             model_name = self.forecaster_models.get(key, 'unknown')
@@ -505,13 +495,30 @@ class FallTemplateBot2025(ForecastBot):
     def _create_upper_and_lower_bound_messages(
         self,
         question: NumericQuestion,
-        # Define forecaster models (only 4 forecasters)\n        forecaster_keys = [\"forecaster1\", \"forecaster2\", \"forecaster3\", \"forecaster4\"]\n        individual_reasonings = []\n        individual_predictions = []\n\n        # Generate individual forecasts\n        for key in forecaster_keys:\n            llm = self.get_llm(key, \"llm\")\n            reasoning = await llm.invoke(prompt)\n            logger.info(f\"Reasoning from {key} for URL {question.page_url}: {reasoning}\")\n            percentile_list: list[Percentile] = await structure_output(\n                reasoning, list[Percentile], model=self.get_llm(\"parser\", \"llm\")\n            )\n            prediction = NumericDistribution.from_question(percentile_list, question)\n            individual_reasonings.append(reasoning)\n            individual_predictions.append(prediction)\n            model_name = self.forecaster_models.get(key, 'unknown')\n            logger.info(f\"Forecast from {key} ({model_name}) for URL {question.page_url}: {prediction.declared_percentiles}\")\n\n        # Synthesize final prediction\n        synth_prompt = clean_indents(\n            f\"\"\"\n            You are a synthesizer comparing multiple forecaster outputs for a numeric question.\n\n            Question: {question.question_text}\n\n            Individual forecasts:\n            \"\"\"\n        )\n        for i, (reason, pred) in enumerate(zip(individual_reasonings, individual_predictions), 1):\n            synth_prompt += f\"\\nForecaster {i}: Reasoning: {reason}\\nPrediction: {pred.declared_percentiles}\\n\"\n\n        synth_prompt += clean_indents(\n            f\"\"\"\n            Compare these: Highlight agreements/disagreements, resolve via heuristics (base rates, Bayesian updates, Fermi, intangibles, qualitative elements, wide intervals, bias avoidance). Synthesize a final balanced distribution.\n\n            Output only the final percentiles:\n            Percentile 10: XX\n            Percentile 20: XX\n            Percentile 40: XX\n            Percentile 60: XX\n            Percentile 80: XX\n            Percentile 90: XX\n            \"\"\"\n        )\n\n        synth_llm = self.get_llm(\"synthesizer\", \"llm\")\n        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')\n        synth_reasoning = await synth_llm.invoke(synth_prompt)\n        logger.info(f\"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}\")\n        parser_llm = self.get_llm(\"parser\", \"llm\")\n        parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')\n        final_percentile_list: list[Percentile] = await structure_output(\n            synth_reasoning, list[Percentile], model=parser_llm\n        )\n        final_prediction = NumericDistribution.from_question(final_percentile_list, question)\n        logger.info(f\"Synthesized final prediction (parsed with {parser_model_name}) for URL {question.page_url}: {final_prediction.declared_percentiles}\")\n\n        # Combined reasoning with model names\n        forecaster_keys = [\"forecaster1\", \"forecaster2\", \"forecaster3\", \"forecaster4\"]\n        combined_reasoning_parts = []\n        for i, (key, reasoning) in enumerate(zip(forecaster_keys, individual_reasonings)):\n            model_name = self.forecaster_models.get(key, 'unknown')\n            combined_reasoning_parts.append(f\"Forecaster {i+1} ({key}: {model_name}): {reasoning}\")\n        combined_reasoning_parts.append(f\"Synthesis (using {self.forecaster_models.get('synthesizer', 'unknown')}): {synth_reasoning}\")\n        combined_reasoning = \"\\n\\n\".join(combined_reasoning_parts)
+    ) -> tuple[str, str]:
+        if question.nominal_upper_bound is not None:
+            upper_bound_number = question.nominal_upper_bound
+        else:
+            upper_bound_number = question.upper_bound
+        if question.nominal_lower_bound is not None:
+            lower_bound_number = question.nominal_lower_bound
+        else:
+            lower_bound_number = question.lower_bound
 
-        return ReasonedPrediction(prediction_value=final_prediction, reasoning=combined_reasoning)
+        if question.open_upper_bound:
+            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}."
+        else:
+            upper_bound_message = (
+                f"The outcome can not be higher than {upper_bound_number}."
+            )
 
-    def _create_upper_and_lower_bound_messages(
-        self,
-        question: NumericQuestion,
+        if question.open_lower_bound:
+            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}."
+        else:
+            lower_bound_message = (
+                f"The outcome can not be lower than {lower_bound_number}."
+            )
+        return upper_bound_message, lower_bound_message
 
 
 def main():
@@ -530,19 +537,10 @@ def main():
     logger.addHandler(file_handler)
     print(f"Logging to {filename}")
 
-
-
     # Debug env
     print(f"Loaded METACULUS_TOKEN: {'*' * 10 if os.getenv('METACULUS_TOKEN') else 'Not loaded'}")
     print(f"Loaded OPENROUTER_API_KEY: {'*' * 10 if os.getenv('OPENROUTER_API_KEY') else 'Not loaded'}")
     print(f"Loaded OPENAI_API_KEY: {'*' * 10 if os.getenv('OPENAI_API_KEY') else 'Not loaded'}")
-    print(f"Loaded LITELLM_OPENROUTER_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENROUTER_API_KEY') else 'Not loaded'}")
-    print(f"Loaded LITELLM_OPENAI_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENAI_API_KEY') else 'Not loaded'}")
-    print(f"Loaded PERPLEXITY_API_KEY: {'*' * 10 if os.getenv('PERPLEXITY_API_KEY') else 'Not loaded'}")
-    print(f"Loaded EXA_API_KEY: {'*' * 10 if os.getenv('EXA_API_KEY') else 'Not loaded'}")
-    print(f"Loaded ANTHROPIC_API_KEY: {'*' * 10 if os.getenv('ANTHROPIC_API_KEY') else 'Not loaded'}")
-    print(f"Loaded ASKNEWS_CLIENT_ID: {'*' * 10 if os.getenv('ASKNEWS_CLIENT_ID') else 'Not loaded'}")
-    print(f"Loaded ASKNEWS_SECRET: {'*' * 10 if os.getenv('ASKNEWS_SECRET') else 'Not loaded'}")
 
     # Log all environment variables (without revealing their values)
     logger.info("Environment variables check:")
@@ -550,13 +548,6 @@ def main():
         'METACULUS_TOKEN',
         'OPENROUTER_API_KEY',
         'OPENAI_API_KEY',
-        'LITELLM_OPENROUTER_API_KEY',
-        'LITELLM_OPENAI_API_KEY',
-        'PERPLEXITY_API_KEY',
-        'EXA_API_KEY',
-        'ANTHROPIC_API_KEY',
-        'ASKNEWS_CLIENT_ID',
-        'ASKNEWS_SECRET'
     ]
     for var in env_vars:
         logger.info(f"{var}: {'SET' if os.getenv(var) else 'NOT SET'}")
@@ -573,28 +564,15 @@ def main():
         logger.error(f"Missing required environment variables: {missing_keys}")
         exit(1)
 
-    # Warn about missing optional API keys
-    optional_keys = ['PERPLEXITY_API_KEY', 'EXA_API_KEY', 'ANTHROPIC_API_KEY', 'ASKNEWS_CLIENT_ID', 'ASKNEWS_SECRET']
-    missing_optional_keys = [key for key in optional_keys if not os.getenv(key)]
-    if missing_optional_keys:
-        logger.warning(f"Missing optional environment variables: {missing_optional_keys}. Some models may not work.")
-        
-    # Log GitHub Actions specific environment
-    if os.getenv('GITHUB_ACTIONS') == 'true':
-        logger.info("Running in GitHub Actions environment")
-        logger.info(f"GitHub repository: {os.getenv('GITHUB_REPOSITORY', 'Unknown')}")
-        logger.info(f"GitHub workflow: {os.getenv('GITHUB_WORKFLOW', 'Unknown')}")
-        logger.info(f"GitHub run ID: {os.getenv('GITHUB_RUN_ID', 'Unknown')}")
-
     parser = argparse.ArgumentParser(
-        description="Run the Q1TemplateBot forecasting system"
+        description="Run the MultiKeyTemplateBot2025 forecasting system"
     )
     parser.add_argument(
         "--mode",
         type=str,
         choices=["tournament", "metaculus_cup", "test_questions"],
-        default="tournament",
-        help="Specify the run mode (default: tournament)",
+        default="test_questions",
+        help="Specify the run mode (default: test_questions)",
     )
     args = parser.parse_args()
     run_mode: Literal["tournament", "metaculus_cup", "test_questions"] = args.mode
@@ -606,10 +584,10 @@ def main():
 
     publish_reports = run_mode != "test_questions"
 
-    # Initialize the bot with reduced DeepSeek models
-    template_bot = FallTemplateBot2025(
+    # Initialize the bot with mixed model configuration
+    template_bot = MultiKeyTemplateBot2025(
         research_reports_per_question=1,
-        predictions_per_research_report=1,  # Changed from 6 to 1 since we have 4 forecasters
+        predictions_per_research_report=1,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=publish_reports,
         folder_to_save_reports_to=None,
@@ -627,13 +605,85 @@ def main():
                 timeout=60,
                 allowed_tries=2,
             ),
-            "forecaster1": "openrouter/openai/gpt-4o",
-            "forecaster2": "openrouter/deepseek/deepseek-r1",  # Most advanced DeepSeek model
-            "forecaster3": "openrouter/moonshotai/kimi-k2-0905",
-            "forecaster4": "openrouter/openai/gpt-4o",  # Synthesizer
-            "parser": "openrouter/openai/gpt-4o-mini",
-            "researcher": "openrouter/openai/gpt-4o-mini",
-            "summarizer": "openrouter/openai/gpt-4o-mini",
+            # GPT models using original key
+            "forecaster1": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster2": GeneralLlm(
+                model="openrouter/openai/gpt-4o",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster3": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster4": GeneralLlm(
+                model="openrouter/openai/gpt-4o",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster5": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster6": GeneralLlm(
+                model="openrouter/openai/gpt-4o",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            # Specialized models using new key
+            "deepseek_forecaster": GeneralLlm(
+                model="openrouter/deepseek/deepseek-chat-v3-0324",
+                api_key="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",
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "kimi_forecaster": GeneralLlm(
+                model="openrouter/moonshotai/kimi-k2-0905",
+                api_key="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",
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "parser": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.3,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "researcher": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "summarizer": GeneralLlm(
+                model="openrouter/openai/gpt-4o-mini",
+                api_key=os.getenv('OPENROUTER_API_KEY'),
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
         },
     )
 
@@ -674,19 +724,15 @@ def main():
             
             forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports
         elif run_mode == "metaculus_cup":
-            # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
-            # The permanent ID for the Metaculus Cup is now 32828
             logger.info("Starting Metaculus cup mode forecast")
             logger.info("Checking Metaculus Cup Tournament ID: 32828")
             template_bot.skip_previously_forecasted_questions = False
             forecast_reports = asyncio.run(
                 template_bot.forecast_on_tournament(
-                    32828, return_exceptions=True  # Use the correct ID instead of the slug
+                    32828, return_exceptions=True
                 )
             )
         elif run_mode == "test_questions":
-            # Example questions are a good way to test the bot's performance on a single question
-            # Temporarily use dummy numeric question for testing multi-model without API token
             logger.info("Starting test questions mode")
             from forecasting_tools import NumericQuestion
             dummy_question = NumericQuestion(
@@ -716,12 +762,10 @@ def main():
         logger.error(f"Error type: {type(e).__name__}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        # Don't raise in GitHub Actions to prevent workflow failures
         if os.getenv('GITHUB_ACTIONS') != 'true':
             raise
         else:
             logger.info("Exiting gracefully in GitHub Actions environment")
-            # Exit gracefully in GitHub Actions
             exit(0)
 
 
@@ -733,7 +777,6 @@ if __name__ == "__main__":
         logger.error(f"Error type: {type(e).__name__}")
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        # Don't raise in GitHub Actions to prevent workflow failures
         if os.getenv('GITHUB_ACTIONS') != 'true':
             raise
         else:
