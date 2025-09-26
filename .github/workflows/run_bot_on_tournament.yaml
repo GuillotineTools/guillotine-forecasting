@@ -3,7 +3,10 @@ name: Forecast on new AI tournament questions
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/20 * * * *" # runs every 20 minutes. Make sure to skip already forecasted questions!
+    # Multiple schedules for redundancy - if one fails, others should catch it
+    - cron: "*/15 * * * *" # Every 15 minutes
+    - cron: "*/20 * * * *" # Every 20 minutes (backup)
+    - cron: "*/30 * * * *" # Every 30 minutes (backup)
 
 # Add concurrency group to prevent parallel runs
 concurrency:
@@ -15,6 +18,7 @@ concurrency:
 jobs:
   forecast_job:
     runs-on: ubuntu-latest # determines the machine that will run the job - keep as is
+    timeout-minutes: 30 # Timeout to prevent hanging jobs
     steps: # sets up the steps that will be run in order
       # setup repository with all necessary dependencies - keep as is
       - name: Check out repository
@@ -41,10 +45,11 @@ jobs:
         run: |
           echo "=== Starting bot run at $(date) ==="
           echo "=== Running tournament mode ==="
-          poetry run python main.py --mode tournament
+          poetry run python main.py --mode tournament || echo "Tournament mode failed, continuing..."
           echo "=== Tournament mode completed, running Metaculus Cup mode ==="
-          poetry run python main.py --mode metaculus_cup
+          poetry run python main.py --mode metaculus_cup || echo "Metaculus Cup mode failed, continuing..."
           echo "=== Bot run completed at $(date) ==="
+        continue-on-error: true
         # this reads the environment variables from the github repository.
         # Store under Settings --> Secrets and variables --> Actions
         env:
@@ -67,3 +72,5 @@ jobs:
           NOTIFICATION_RECIPIENT_EMAIL: ${{ secrets.NOTIFICATION_RECIPIENT_EMAIL }}
           NOTIFICATION_SMTP_SERVER: ${{ secrets.NOTIFICATION_SMTP_SERVER || 'smtp.gmail.com' }}
           NOTIFICATION_SMTP_PORT: ${{ secrets.NOTIFICATION_SMTP_PORT || '587' }}
+          # ntfy notification settings
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'metaculus-bot-jsgle' }}
