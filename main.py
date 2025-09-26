@@ -2153,54 +2153,97 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info(f"Checking MiniBench Tournament ID: {MetaculusApi.CURRENT_MINIBENCH_ID}")
             logger.info("Checking Fall AIB 2025 Tournament by slug: fall-aib-2025")
 
-            # Fallback function to manually filter by tournament_slugs when API filtering fails
-            async def get_tournament_questions_fallback(tournament_slug: str, statuses: list[str] = None):
-                """Fallback function to get tournament questions when API filtering fails"""
-                logger.info(f"Using fallback method to find {tournament_slug} questions...")
+            # Optimized function to get tournament questions with comprehensive detection
+            async def get_tournament_questions_optimized(tournament_slug: str, statuses: list[str] = None):
+                """Optimized function to get tournament questions with multiple detection strategies"""
+                logger.info(f"Using optimized detection for {tournament_slug} questions...")
 
-                # Handle API pagination by checking multiple time periods
-                time_periods = [
-                    timedelta(hours=3),   # Recent questions
-                    timedelta(days=1),    # Last day
-                    timedelta(days=7),    # Last week
-                    timedelta(days=30),   # Last month
-                ]
+                # STRATEGY 1: Direct API filtering (most efficient)
+                logger.info("Strategy 1: Direct API filtering...")
+                try:
+                    direct_filter = ApiFilter(
+                        allowed_tournaments=[tournament_slug],
+                        order_by="-open_time"  # Most recent first
+                    )
+                    if statuses:
+                        direct_filter.allowed_statuses = statuses
 
+                    # Get ALL questions using pagination (not just first page)
+                    direct_questions = await MetaculusApi.get_questions_matching_filter(
+                        direct_filter,
+                        num_questions=2000,  # Large number to get all
+                        error_if_question_target_missed=False
+                    )
+
+                    logger.info(f"Direct API found {len(direct_questions)} {tournament_slug} questions")
+                    if direct_questions:
+                        return direct_questions
+                except Exception as e:
+                    logger.warning(f"Direct API filtering failed: {e}")
+
+                # STRATEGY 2: Time-based detection for recent questions
+                logger.info("Strategy 2: Time-based detection...")
                 all_questions = []
                 seen_ids = set()
 
-                for period in time_periods:
-                    logger.info(f"Checking questions from last {period}")
-                    time_filter = ApiFilter(open_time_gt=datetime.now() - period)
-                    period_questions = await MetaculusApi.get_questions_matching_filter(time_filter)
+                # Check multiple time windows to catch all questions
+                time_windows = [
+                    ("Last 3 hours", timedelta(hours=3)),
+                    ("Last 24 hours", timedelta(hours=24)),
+                    ("Last 7 days", timedelta(days=7)),
+                    ("Last 30 days", timedelta(days=30)),
+                    ("All time", timedelta(days=365)),
+                ]
 
-                    # Avoid duplicates
-                    for question in period_questions:
-                        question_id = getattr(question, 'id', None)
-                        if question_id and question_id not in seen_ids:
-                            seen_ids.add(question_id)
-                            all_questions.append(question)
+                for window_name, period in time_windows:
+                    logger.info(f"Checking {window_name}...")
 
-                    # Stop if we're getting the same results (pagination limit reached)
-                    if len(period_questions) < MetaculusApi.MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST:
-                        break
+                    # Use both publish time and open time filters
+                    filters_to_try = [
+                        ApiFilter(open_time_gt=datetime.now() - period, order_by="-open_time"),
+                        ApiFilter(publish_time_gt=datetime.now() - period, order_by="-published_at"),
+                    ]
 
-                logger.info(f"Total unique questions found across all time periods: {len(all_questions)}")
+                    for time_filter in filters_to_try:
+                        try:
+                            period_questions = await MetaculusApi.get_questions_matching_filter(time_filter)
 
-                # Filter by tournament slug
-                filtered_questions = []
-                for question in all_questions:
-                    # Check if question has the target tournament slug
-                    if hasattr(question, 'tournament_slugs') and tournament_slug in question.tournament_slugs:
-                        # Filter by status if specified
-                        if statuses:
-                            if hasattr(question, 'state') and question.state.name in statuses:
-                                filtered_questions.append(question)
-                        else:
-                            filtered_questions.append(question)
+                            # Add new unique questions
+                            new_count = 0
+                            for question in period_questions:
+                                question_id = getattr(question, 'id', None)
+                                if question_id and question_id not in seen_ids:
+                                    # Check if it belongs to our tournament
+                                    if (hasattr(question, 'tournament_slugs') and
+                                        tournament_slug in question.tournament_slugs):
+                                        seen_ids.add(question_id)
+                                        all_questions.append(question)
+                                        new_count += 1
 
-                logger.info(f"Fallback method found {len(filtered_questions)} {tournament_slug} questions")
-                return filtered_questions
+                            logger.info(f"  Found {new_count} new {tournament_slug} questions in {window_name}")
+
+                            # Stop if we're not getting new questions (pagination limit)
+                            if len(period_questions) < MetaculusApi.MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST:
+                                break
+
+                        except Exception as e:
+                            logger.warning(f"Time filter failed for {window_name}: {e}")
+
+                    # If we found questions in this window, continue to next window
+                    if all_questions:
+                        continue
+
+                # Filter by status if specified
+                if statuses and all_questions:
+                    filtered_questions = [
+                        q for q in all_questions
+                        if hasattr(q, 'state') and q.state.name in statuses
+                    ]
+                    logger.info(f"Filtered to {len(filtered_questions)} questions with statuses: {statuses}")
+                    all_questions = filtered_questions
+
+                logger.info(f"Optimized detection found {len(all_questions)} {tournament_slug} questions total")
+                return all_questions
 
             # Use get_questions_matching_filter instead of forecast_on_tournament due to API issues
             from forecasting_tools.helpers.metaculus_api import ApiFilter
@@ -2268,18 +2311,18 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 MetaculusApi.get_questions_matching_filter(fall_aib_filter)
             )
 
-            # If API filtering returns no questions, try fallback method
+            # If API filtering returns no questions, try optimized method
             if len(fall_aib_questions) == 0:
-                logger.warning("API filtering found no Fall AIB 2025 questions, trying fallback method...")
+                logger.warning("API filtering found no Fall AIB 2025 questions, trying optimized detection...")
                 fall_aib_questions = asyncio.run(
-                    get_tournament_questions_fallback("fall-aib-2025", ["open"])
+                    get_tournament_questions_optimized("fall-aib-2025", ["open"])
                 )
 
             # Check for recently closed questions that might have been missed
             if len(fall_aib_questions) == 0:
                 logger.warning("Still no Fall AIB 2025 questions found, checking for recently closed questions...")
                 recently_closed = asyncio.run(
-                    get_tournament_questions_fallback("fall-aib-2025", ["CLOSED"])
+                    get_tournament_questions_optimized("fall-aib-2025", ["closed"])
                 )
 
                 # Filter for questions closed in the last 1.5 hours (within realistic forecasting window)
