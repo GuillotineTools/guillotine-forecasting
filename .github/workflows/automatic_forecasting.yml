@@ -2,8 +2,8 @@ name: Automatic Forecasting
 
 on:
   schedule:
-    # Run every 4 hours
-    - cron: '0 */4 * * *'
+    # Run every 20 minutes to catch new questions quickly
+    - cron: '*/20 * * * *'
   workflow_dispatch: # Allow manual triggering
 
 jobs:
