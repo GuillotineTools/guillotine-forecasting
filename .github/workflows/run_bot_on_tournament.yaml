@@ -65,3 +65,5 @@ jobs:
           NOTIFICATION_RECIPIENT_EMAIL: ${{ secrets.NOTIFICATION_RECIPIENT_EMAIL }}
           NOTIFICATION_SMTP_SERVER: ${{ secrets.NOTIFICATION_SMTP_SERVER || 'smtp.gmail.com' }}
           NOTIFICATION_SMTP_PORT: ${{ secrets.NOTIFICATION_SMTP_PORT || '587' }}
+          # ntfy notification settings
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'metaculus-bot-jsgle' }}

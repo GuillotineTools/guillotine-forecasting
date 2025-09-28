@@ -10,6 +10,9 @@ from typing import Literal
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# Import ntfy alert system
+from ntfy_alerts import send_bot_status_alert, send_new_question_alert, send_forecast_alert
+
 from forecasting_tools import (
     AskNewsSearcher,
     BinaryQuestion,
@@ -1593,6 +1596,16 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 """
     send_notification_email(startup_subject, startup_body)
 
+    # Send ntfy startup notification
+    try:
+        send_bot_status_alert(
+            status="started",
+            message=f"Bot starting in {run_mode} mode from {os.getenv('GITHUB_ACTIONS', 'Local')}",
+            priority=3
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send ntfy startup notification: {e}")
+
     try:
         if run_mode == "tournament":
             logger.info("Starting tournament mode forecast")
@@ -1674,8 +1687,28 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info(f"Found {len(all_fall_aib_questions)} total questions for Fall AIB 2025 (including closed).")
             
             logger.info(f"Found {len(fall_aib_questions)} OPEN questions for Fall AIB 2025.")
+
+            # Send ntfy alerts for new Fall AIB questions
             for q in fall_aib_questions:
                 logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
+                try:
+                    # Determine question type
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+
+                    send_new_question_alert(
+                        question_title=q.question_text[:100] + "..." if len(q.question_text) > 100 else q.question_text,
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="Fall AIB 2025"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for question {q.page_url}: {e}")
+
             fall_aib_reports = asyncio.run(
                 template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
             )
@@ -1742,6 +1775,22 @@ Questions processed: {len([r for r in forecast_reports if r is not None and not 
 Questions with errors: {len([r for r in forecast_reports if isinstance(r, Exception)])}
 """
         send_notification_email(completion_subject, completion_body)
+
+        # Send ntfy completion notification
+        try:
+            successful_reports = len([r for r in forecast_reports if r is not None and not isinstance(r, Exception)])
+            error_reports = len([r for r in forecast_reports if isinstance(r, Exception)])
+
+            status_type = "success" if error_reports == 0 else "warning" if successful_reports > 0 else "error"
+            priority = 2 if error_reports == 0 else 4 if successful_reports > 0 else 5
+
+            send_bot_status_alert(
+                status=status_type,
+                message=f"Bot completed {run_mode} mode. Processed: {successful_reports}, Errors: {error_reports}",
+                priority=priority
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send ntfy completion notification: {e}")
 
     except Exception as e:
         logger.error(f"An unexpected error occurred: {str(e)}")
