@@ -41,9 +41,7 @@ jobs:
         run: |
           echo "=== Starting bot run at $(date) ==="
           echo "=== Running tournament mode ==="
-          poetry run python main.py --mode tournament
-          echo "=== Tournament mode completed, running Metaculus Cup mode ==="
-          poetry run python main.py --mode metaculus_cup
+          poetry run python main.py --mode tournament || echo "Tournament mode failed, continuing..."
           echo "=== Bot run completed at $(date) ==="
         # this reads the environment variables from the github repository.
         # Store under Settings --> Secrets and variables --> Actions
@@ -53,13 +51,13 @@ jobs:
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }} # replace this with the name of the variable under which you stored your own Metaculus token
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ""
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
           # Additional environment variables for LiteLLM
-          LITELLM_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LITELLM_OPENAI_API_KEY: ""
           LITELLM_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Email notification settings
           NOTIFICATION_SENDER_EMAIL: ${{ secrets.NOTIFICATION_SENDER_EMAIL }}

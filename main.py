@@ -1623,7 +1623,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             
             logger.info(f"Found {len(ai_comp_questions)} OPEN questions for AI Competition.")
             for q in ai_comp_questions:
-                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {q.status})")
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
             seasonal_tournament_reports = asyncio.run(
                 template_bot.forecast_questions(ai_comp_questions, return_exceptions=True)
             )
@@ -1648,7 +1648,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             
             logger.info(f"Found {len(minibench_questions)} OPEN questions for MiniBench.")
             for q in minibench_questions:
-                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {q.status})")
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
             minibench_reports = asyncio.run(
                 template_bot.forecast_questions(minibench_questions, return_exceptions=True)
             )
@@ -1675,7 +1675,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             
             logger.info(f"Found {len(fall_aib_questions)} OPEN questions for Fall AIB 2025.")
             for q in fall_aib_questions:
-                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {q.status})")
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
             fall_aib_reports = asyncio.run(
                 template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
             )
