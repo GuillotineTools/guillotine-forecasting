@@ -49,17 +49,13 @@ jobs:
           GITHUB_ACTIONS: "true"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }} # replace this with the name of the variable under which you stored your own Metaculus token
-          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          OPENAI_API_KEY: ""
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PERSONAL_API_KEY: ${{ secrets.PERSONAL_API_KEY || secrets.OPENROUTER_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
-          # Additional environment variables for LiteLLM
-          LITELLM_OPENAI_API_KEY: ""
-          LITELLM_OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Email notification settings
           NOTIFICATION_SENDER_EMAIL: ${{ secrets.NOTIFICATION_SENDER_EMAIL }}
           NOTIFICATION_SENDER_PASSWORD: ${{ secrets.NOTIFICATION_SENDER_PASSWORD }}
@@ -69,6 +65,5 @@ jobs:
           # ntfy notification settings
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC || 'metaculus-bot-jsgle' }}
           # Disable OpenAI tracing to prevent API key errors
-          OPENAI_API_KEY: ""
           OPENAI_DISABLE_TRACE: "true"
           OPENAI_ORGANIZATION: ""
