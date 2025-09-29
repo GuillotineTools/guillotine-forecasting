@@ -13,11 +13,12 @@ from email.mime.multipart import MIMEMultipart
 # Import ntfy alert system
 from ntfy_alerts import send_bot_status_alert, send_new_question_alert, send_forecast_alert
 
-from fallback_llm import create_default_fallback_llm, create_research_fallback_llm, create_synthesis_fallback_llm, create_forecasting_fallback_llm
+from fallback_llm import create_default_fallback_llm, create_research_fallback_llm, create_synthesis_fallback_llm, create_forecasting_fallback_llm, FallbackLLM
 from forecasting_tools import (
     AskNewsSearcher,
     BinaryQuestion,
     ForecastBot,
+    GeneralLlm,
     MetaculusApi,
     MetaculusQuestion,
     MultipleChoiceQuestion,
@@ -187,15 +188,18 @@ class FallTemplateBot2025(ForecastBot):
         return {**defaults, **forecaster_defaults}
 
     # Define model names for logging - USING ONLY FREE MODELS
+    # These match the primary models in our FallbackLLM chains
     forecaster_models = {
-        "forecaster1": "openrouter/deepseek/deepseek-r1",
-        "forecaster2": "openrouter/deepseek/deepseek-chat-v3-0324",
-        "forecaster3": "openrouter/moonshotai/kimi-k2-0905",
-        "forecaster4": "openrouter/qwen/qwen2.5-72b-instruct",
-        "synthesizer": "openrouter/qwen/qwen2.5-72b-instruct",
-        "parser": "openrouter/qwen/qwen2.5-32b-instruct",
-        "researcher": "openrouter/qwen/qwen2.5-32b-instruct",
-        "summarizer": "openrouter/qwen/qwen2.5-32b-instruct",
+        "forecaster1": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster2": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster3": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster4": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster5": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster6": "openrouter/x-ai/grok-4-fast:free",
+        "synthesizer": "openrouter/x-ai/grok-4-fast:free",
+        "parser": "openrouter/x-ai/grok-4-fast:free",
+        "researcher": "openrouter/x-ai/grok-4-fast:free",
+        "summarizer": "openrouter/x-ai/grok-4-fast:free",
     }
     
     _max_concurrent_questions = (
@@ -205,6 +209,16 @@ class FallTemplateBot2025(ForecastBot):
     
     # Add rate limiting for LLM calls
     _llm_rate_limiter = asyncio.Semaphore(5)  # Limit concurrent LLM calls
+
+    def get_llm(self, llm_name: str, llm_type: str = "llm") -> GeneralLlm | FallbackLLM:
+        """
+        Override get_llm to return our FallbackLLM instances instead of creating GeneralLlm instances.
+        """
+        if llm_name in self._llms:
+            return self._llms[llm_name]
+        else:
+            # Fallback to parent class behavior if llm not found
+            return super().get_llm(llm_name, llm_type)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def run_research(self, question: MetaculusQuestion) -> str:
@@ -1392,7 +1406,7 @@ def main():
     # Configure API key for FallbackLLM system
     openrouter_key = os.getenv('OPENROUTER_API_KEY', '')
     # Use the new API key provided
-    new_api_key = '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'
+    new_api_key = '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'
     if new_api_key and new_api_key != 'missing_api_key':
         os.environ['OPENROUTER_API_KEY'] = new_api_key
         logger.info("New API key has been configured for FallbackLLM")
