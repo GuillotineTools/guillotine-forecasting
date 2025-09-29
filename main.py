@@ -383,12 +383,15 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
                 if not successful_forecasters:
                     logger.error(f"All forecasters failed for binary question URL {question.page_url}")
+                    logger.error(f"Available forecasters: {list(self.forecaster_models.keys())}")
+                    logger.error(f"LLM configuration: {[(name, getattr(llm, 'model', 'N/A')) for name, llm in self.llms.items() if name in self.forecaster_models]}")
                     # Return a default prediction
                     return ReasonedPrediction(prediction_value=0.5, reasoning="All forecasters failed, defaulting to 50% probability")
 
@@ -525,12 +528,15 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {decimal_pred}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
                 if not successful_forecasters:
                     logger.error(f"All forecasters failed for binary question URL {question.page_url}")
+                    logger.error(f"Available forecasters: {list(self.forecaster_models.keys())}")
+                    logger.error(f"LLM configuration: {[(name, getattr(llm, 'model', 'N/A')) for name, llm in self.llms.items() if name in self.forecaster_models]}")
                     # Return a default prediction
                     return ReasonedPrediction(prediction_value=0.5, reasoning="All forecasters failed, defaulting to 50% probability")
 
@@ -647,7 +653,8 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {predicted_option_list}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
@@ -818,7 +825,8 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {predicted_option_list}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
@@ -950,7 +958,8 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {prediction.declared_percentiles}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
@@ -1122,7 +1131,8 @@ class FallTemplateBot2025(ForecastBot):
                             model_name = self.forecaster_models.get(key, 'unknown')
                             logger.info(f"Forecast from {key} ({model_name}) for URL {question.page_url}: {prediction.declared_percentiles}")
                     except Exception as e:
-                        logger.warning(f"Forecaster {key} failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} ({self.forecaster_models.get(key, 'unknown')}) failed for URL {question.page_url}: {str(e)}")
+                        logger.error(f"Forecaster {key} model details: {getattr(self.llms.get(key), 'model', 'N/A')}, API key source: {'personal' if key in ['forecaster2', 'forecaster3'] else 'OpenRouter'}")
                         continue
 
                 # Check if we have any successful forecasts
@@ -1486,10 +1496,10 @@ def main():
     # Initialize the bot with mixed model configuration using multiple API keys
     # Using the correct API key configuration:
     # - OpenRouter API key (from Metaculus with free credits) for OpenAI models
-    # - Personal API key for DeepSeek and Kimi models
+    # - Personal API key from environment for DeepSeek and Kimi models
     openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-    personal_api_key = "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"  # Personal key for DeepSeek and Kimi models
-    
+    personal_api_key = os.getenv('PERSONAL_API_KEY', openrouter_api_key)  # Fallback to OpenRouter key if personal key not set
+
     # Validate that we have the required OpenRouter API key
     if not openrouter_api_key:
         logger.error("OPENROUTER_API_KEY is not set. Please check your environment variables.")
