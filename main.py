@@ -13,11 +13,11 @@ from email.mime.multipart import MIMEMultipart
 # Import ntfy alert system
 from ntfy_alerts import send_bot_status_alert, send_new_question_alert, send_forecast_alert
 
+from fallback_llm import create_default_fallback_llm, create_research_fallback_llm, create_synthesis_fallback_llm, create_forecasting_fallback_llm
 from forecasting_tools import (
     AskNewsSearcher,
     BinaryQuestion,
     ForecastBot,
-    GeneralLlm,
     MetaculusApi,
     MetaculusQuestion,
     MultipleChoiceQuestion,
@@ -128,15 +128,7 @@ class FallTemplateBot2025(ForecastBot):
     ```python
     my_bot = MyBot(
         ...
-        llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
-            "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o", # "anthropic/claude-3-5-sonnet-20241022", etc (see docs for litellm)
-                temperature=0.3,
-                timeout=40,
-                allowed_tries=2,
-            ),
-            "summarizer": "openai/gpt-4o-mini",
-            "researcher": "asknews/deep-research/low",
+        llms={  # choose your model names or FallbackLLM instances here, otherwise defaults will be chosen for you
             "parser": "openai/gpt-4o-mini",
         },
     )
@@ -178,29 +170,32 @@ class FallTemplateBot2025(ForecastBot):
             # Use a placeholder but this will cause issues
             openrouter_api_key = "missing_api_key"
         
+        # Note: FallbackLLM doesn't use simple model strings, so we'll handle this differently
+        # The actual LLM instances are created in the main() function
         forecaster_defaults = {
-            "default": {"model": "openrouter/openai/gpt-4o", "api_key": openrouter_api_key, **defaults},
-            "forecaster1": {"model": "openrouter/openai/gpt-4o", "api_key": openrouter_api_key, **defaults},
-            "forecaster2": {"model": "openrouter/deepseek/deepseek-r1", "api_key": personal_api_key, **defaults},
-            "forecaster3": {"model": "openrouter/moonshotai/moonshot-v1-8k", "api_key": personal_api_key, **defaults},
-            "forecaster4": {"model": "openrouter/openai/gpt-4o", "api_key": openrouter_api_key, **defaults},
-            # Add support models
-            "synthesizer": {"model": "openrouter/openai/gpt-4o", "api_key": openrouter_api_key, **defaults},
-            "parser": {"model": "openrouter/openai/gpt-4o-mini", "api_key": openrouter_api_key, **defaults},
-            "researcher": {"model": "openrouter/openai/gpt-4o-mini", "api_key": openrouter_api_key, **defaults},
+            "default": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "forecaster1": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "forecaster2": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "forecaster3": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "forecaster4": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            # Add support models - ALL USING FREE MODELS
+            "synthesizer": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "parser": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "researcher": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
+            "summarizer": {"type": "fallback_llm", "api_key": openrouter_api_key, **defaults},
         }
         return {**defaults, **forecaster_defaults}
 
-    # Define model names for logging
+    # Define model names for logging - USING ONLY FREE MODELS
     forecaster_models = {
-        "forecaster1": "openrouter/openai/gpt-4o",
-        "forecaster2": "openrouter/deepseek/deepseek-r1",
-        "forecaster3": "openrouter/moonshotai/moonshot-v1-8k",
-        "forecaster4": "openrouter/openai/gpt-4o",
-        "synthesizer": "openrouter/openai/gpt-4o",
-        "parser": "openrouter/openai/gpt-4o-mini",
-        "researcher": "openrouter/openai/gpt-4o-mini",
-        "summarizer": "openrouter/openai/gpt-4o-mini",
+        "forecaster1": "openrouter/deepseek/deepseek-r1",
+        "forecaster2": "openrouter/deepseek/deepseek-chat-v3-0324",
+        "forecaster3": "openrouter/moonshotai/kimi-k2-0905",
+        "forecaster4": "openrouter/qwen/qwen2.5-72b-instruct",
+        "synthesizer": "openrouter/qwen/qwen2.5-72b-instruct",
+        "parser": "openrouter/qwen/qwen2.5-32b-instruct",
+        "researcher": "openrouter/qwen/qwen2.5-32b-instruct",
+        "summarizer": "openrouter/qwen/qwen2.5-32b-instruct",
     }
     
     _max_concurrent_questions = (
@@ -234,9 +229,7 @@ class FallTemplateBot2025(ForecastBot):
                                 logger.error("OPENROUTER_API_KEY not available")
                                 return ""
                             
-                            from forecasting_tools import GeneralLlm
-                            temp_llm = GeneralLlm(
-                                model="openrouter/openai/gpt-4o-mini",  # Use a reliable model
+                            temp_llm = create_default_fallback_llm(
                                 api_key=openrouter_api_key,
                                 temperature=0.5,
                                 timeout=60,
@@ -300,7 +293,7 @@ class FallTemplateBot2025(ForecastBot):
                         """
                     )
 
-                    if isinstance(researcher, GeneralLlm):
+                    if hasattr(researcher, 'invoke'):
                         research = await researcher.invoke(prompt)
                     elif researcher == "asknews/news-summaries":
                         research = await AskNewsSearcher().get_formatted_news_async(
@@ -423,7 +416,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -433,7 +426,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             final_binary_prediction: BinaryPrediction = await structure_output(
                                 synth_reasoning, BinaryPrediction, model=parser_llm
                             )
@@ -568,7 +561,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -578,7 +571,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             final_binary_prediction: BinaryPrediction = await structure_output(
                                 synth_reasoning, BinaryPrediction, model=parser_llm
                             )
@@ -700,7 +693,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -710,7 +703,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             
                             # Parse the synthesized prediction
                             parsing_instructions = clean_indents(
@@ -872,7 +865,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -882,7 +875,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             final_predicted_option_list: PredictedOptionList = await structure_output(
                                 text_to_structure=synth_reasoning,
                                 output_type=PredictedOptionList,
@@ -1014,7 +1007,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -1024,7 +1017,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             final_percentile_list: list[Percentile] = await structure_output(
                                 synth_reasoning, list[Percentile], model=parser_llm
                             )
@@ -1187,7 +1180,7 @@ class FallTemplateBot2025(ForecastBot):
                             # Fallback to default LLM
                             synth_llm = self.get_llm("default", "llm")
                             
-                        synth_model_name = self.forecaster_models.get('synthesizer', 'openai/gpt-4o')
+                        synth_model_name = self.forecaster_models.get('synthesizer', 'openrouter/qwen/qwen2.5-72b-instruct')
                         synth_reasoning = await synth_llm.invoke(synth_prompt)
                         logger.info(f"Synthesized reasoning (using {synth_model_name}) for URL {question.page_url}: {synth_reasoning}")
                         
@@ -1197,7 +1190,7 @@ class FallTemplateBot2025(ForecastBot):
                                 # Fallback to default LLM
                                 parser_llm = self.get_llm("default", "llm")
                                 
-                            parser_model_name = self.forecaster_models.get('parser', 'openai/gpt-4o-mini')
+                            parser_model_name = self.forecaster_models.get('parser', 'openrouter/qwen/qwen2.5-32b-instruct')
                             final_percentile_list: list[Percentile] = await structure_output(
                                 synth_reasoning, list[Percentile], model=parser_llm
                             )
@@ -1396,16 +1389,11 @@ def main():
     logger.addHandler(file_handler)
     print(f"Logging to {filename}")
 
-    # Set LiteLLM environment variables to ensure proper API key handling
-    # This ensures LiteLLM can find the keys even when using OpenRouter models
+    # Configure API key for FallbackLLM system
     openrouter_key = os.getenv('OPENROUTER_API_KEY', '')
     if openrouter_key and openrouter_key != '' and openrouter_key != 'missing_api_key':
-        os.environ['LITELLM_OPENROUTER_API_KEY'] = openrouter_key
         os.environ['OPENROUTER_API_KEY'] = openrouter_key
-        # Also set OPENAI_API_KEY to OpenRouter key to handle any fallback to OpenAI endpoints
-        os.environ['OPENAI_API_KEY'] = openrouter_key
-        os.environ['LITELLM_OPENAI_API_KEY'] = openrouter_key
-        logger.info("API keys have been properly configured for LiteLLM")
+        logger.info("API key has been properly configured for FallbackLLM")
     else:
         logger.error("OPENROUTER_API_KEY is not properly set!")
         logger.info(f"Current OPENROUTER_API_KEY value: {'SET' if openrouter_key else 'NOT SET'}")
@@ -1414,8 +1402,6 @@ def main():
         elif openrouter_key == 'missing_api_key':
             logger.info("OPENROUTER_API_KEY was set to placeholder 'missing_api_key', please update it")
     
-    logger.info(f"LITELLM_OPENROUTER_API_KEY is set: {'SET' if os.getenv('LITELLM_OPENROUTER_API_KEY') else 'NOT SET'}")
-    logger.info(f"LITELLM_OPENAI_API_KEY is set: {'SET' if os.getenv('LITELLM_OPENAI_API_KEY') else 'NOT SET'}")
     logger.info(f"OPENROUTER_API_KEY is set: {'SET' if os.getenv('OPENROUTER_API_KEY') else 'NOT SET'}")
     logger.info(f"OPENAI_API_KEY is set: {'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET'}")
 
@@ -1423,8 +1409,6 @@ def main():
     print(f"Loaded METACULUS_TOKEN: {'*' * 10 if os.getenv('METACULUS_TOKEN') else 'Not loaded'}")
     print(f"Loaded OPENROUTER_API_KEY: {'*' * 10 if os.getenv('OPENROUTER_API_KEY') else 'Not loaded'}")
     print(f"Loaded OPENAI_API_KEY: {'*' * 10 if os.getenv('OPENAI_API_KEY') else 'Not loaded'}")
-    print(f"Loaded LITELLM_OPENROUTER_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENROUTER_API_KEY') else 'Not loaded'}")
-    print(f"Loaded LITELLM_OPENAI_API_KEY: {'*' * 10 if os.getenv('LITELLM_OPENAI_API_KEY') else 'Not loaded'}")
     print(f"Loaded PERPLEXITY_API_KEY: {'*' * 10 if os.getenv('PERPLEXITY_API_KEY') else 'Not loaded'}")
     print(f"Loaded EXA_API_KEY: {'*' * 10 if os.getenv('EXA_API_KEY') else 'Not loaded'}")
     print(f"Loaded ANTHROPIC_API_KEY: {'*' * 10 if os.getenv('ANTHROPIC_API_KEY') else 'Not loaded'}")
@@ -1437,8 +1421,8 @@ def main():
         'METACULUS_TOKEN',
         'OPENROUTER_API_KEY',
         'OPENAI_API_KEY',
-        'LITELLM_OPENROUTER_API_KEY',
-        'LITELLM_OPENAI_API_KEY',
+        'OPENROUTER_API_KEY',
+        'OPENAI_API_KEY',
         'PERPLEXITY_API_KEY',
         'EXA_API_KEY',
         'ANTHROPIC_API_KEY',
@@ -1448,10 +1432,7 @@ def main():
     for var in env_vars:
         logger.info(f"{var}: {'SET' if os.getenv(var) else 'NOT SET'}")
 
-    # Suppress LiteLLM logging
-    litellm_logger = logging.getLogger("LiteLLM")
-    litellm_logger.setLevel(logging.WARNING)
-    litellm_logger.propagate = False
+    # No LiteLLM logging suppression needed - using fallback system
 
     # Check for required API keys
     required_keys = ['METACULUS_TOKEN', 'OPENROUTER_API_KEY']
@@ -1505,14 +1486,15 @@ def main():
         logger.error("OPENROUTER_API_KEY is not set. Please check your environment variables.")
         exit(1)
     
-    # Also set LiteLLM environment variables to ensure proper handling
-    os.environ['LITELLM_OPENROUTER_API_KEY'] = openrouter_api_key
+    # Set OpenRouter API key for fallback system
+    os.environ['OPENROUTER_API_KEY'] = openrouter_api_key
 
     # Don't set OPENAI_API_KEY to OpenRouter key - let OpenRouter handle it properly
     # This prevents OpenAI client from trying to authenticate directly with OpenAI
     if os.getenv('OPENAI_API_KEY') == '1234567890' or not os.getenv('OPENAI_API_KEY'):
         # Only set if we don't have a real OpenAI key
-        del os.environ['OPENAI_API_KEY']  # Remove to force OpenRouter routing
+        if 'OPENAI_API_KEY' in os.environ:
+            del os.environ['OPENAI_API_KEY']  # Remove to force OpenRouter routing
 
     # Disable OpenAI tracing to prevent API key errors
     os.environ['OPENAI_DISABLE_TRACE'] = 'true'
@@ -1529,68 +1511,56 @@ def main():
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=False,  # Changed to False to allow forecasting on all questions
         llms={
-            "default": GeneralLlm(
-                model="openrouter/openai/gpt-4o",
+            "default": create_default_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.5,
                 timeout=60,
                 allowed_tries=2,
             ),
-            "synthesizer": GeneralLlm(
-                model="openrouter/openai/gpt-4o",
+            "synthesizer": create_synthesis_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.3,
                 timeout=60,
                 allowed_tries=2,
             ),
-            # GPT models using Metaculus OpenRouter key (with free credits)
-            "forecaster1": GeneralLlm(
-                model="openrouter/openai/gpt-4o",
+            # Forecaster models using free models with fallback
+            "forecaster1": create_forecasting_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.5,
                 timeout=60,
                 allowed_tries=2,
             ),
-            # DeepSeek model using personal key for free models
-            "forecaster2": GeneralLlm(
-                model="openrouter/deepseek/deepseek-chat-v3-0324",
-                api_key=personal_api_key,
-                temperature=0.5,
-                timeout=60,
-                allowed_tries=2,
-            ),
-            # Kimi model using personal key for free models
-            "forecaster3": GeneralLlm(
-                model="openrouter/moonshotai/kimi-k2-0905",
-                api_key=personal_api_key,
-                temperature=0.5,
-                timeout=60,
-                allowed_tries=2,
-            ),
-            # GPT model using Metaculus OpenRouter key
-            "forecaster4": GeneralLlm(
-                model="openrouter/openai/gpt-4o",
+            "forecaster2": create_forecasting_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.5,
                 timeout=60,
                 allowed_tries=2,
             ),
-            "parser": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini",
+            "forecaster3": create_forecasting_fallback_llm(
+                api_key=openrouter_api_key,
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "forecaster4": create_forecasting_fallback_llm(
+                api_key=openrouter_api_key,
+                temperature=0.5,
+                timeout=60,
+                allowed_tries=2,
+            ),
+            "parser": create_default_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.3,
                 timeout=60,
                 allowed_tries=2,
             ),
-            "researcher": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini",
+            "researcher": create_research_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.5,
                 timeout=60,
                 allowed_tries=2,
             ),
-            "summarizer": GeneralLlm(
-                model="openrouter/openai/gpt-4o-mini",
+            "summarizer": create_default_fallback_llm(
                 api_key=openrouter_api_key,
                 temperature=0.5,
                 timeout=60,
