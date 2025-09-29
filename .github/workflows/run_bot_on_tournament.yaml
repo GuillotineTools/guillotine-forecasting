@@ -49,8 +49,8 @@ jobs:
           GITHUB_ACTIONS: "true"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }} # replace this with the name of the variable under which you stored your own Metaculus token
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PERSONAL_API_KEY: ${{ secrets.PERSONAL_API_KEY || secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_API_KEY: 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
+          PERSONAL_API_KEY: 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
           PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
