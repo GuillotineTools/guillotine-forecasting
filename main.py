@@ -1507,12 +1507,16 @@ def main():
     
     # Also set LiteLLM environment variables to ensure proper handling
     os.environ['LITELLM_OPENROUTER_API_KEY'] = openrouter_api_key
-    
+
     # Don't set OPENAI_API_KEY to OpenRouter key - let OpenRouter handle it properly
     # This prevents OpenAI client from trying to authenticate directly with OpenAI
     if os.getenv('OPENAI_API_KEY') == '1234567890' or not os.getenv('OPENAI_API_KEY'):
         # Only set if we don't have a real OpenAI key
         del os.environ['OPENAI_API_KEY']  # Remove to force OpenRouter routing
+
+    # Disable OpenAI tracing to prevent API key errors
+    os.environ['OPENAI_DISABLE_TRACE'] = 'true'
+    os.environ['OPENAI_ORGANIZATION'] = ''
     
     # Set the API key for proper routing
     os.environ['OPENROUTER_API_KEY'] = openrouter_api_key
