@@ -1406,7 +1406,9 @@ def main():
 
     # Add file handler for markdown output with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'forecastoutput_{timestamp}.md'
+    outputs_dir = 'outputs'
+    os.makedirs(outputs_dir, exist_ok=True)
+    filename = f'{outputs_dir}/forecastoutput_{timestamp}.md'
     file_handler = logging.FileHandler(filename, mode='w', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
     markdown_formatter = logging.Formatter('## %(asctime)s\n%(name)s - %(levelname)s\n%(message)s\n\n---\n')
