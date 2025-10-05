@@ -41,7 +41,7 @@ class FallbackLLM:
             **kwargs: Additional parameters passed to all GeneralLlm instances
         """
         self.model_chain = model_chain
-        self.api_key = api_key or os.getenv('OPENROUTER_API_KEY', '')
+        self.api_key = api_key if api_key else os.getenv('OPENROUTER_API_KEY', '')
         self.temperature = temperature
         self.timeout = timeout
         self.allowed_tries = allowed_tries

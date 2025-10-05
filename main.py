@@ -1417,22 +1417,17 @@ def main():
     # Configure API key for FallbackLLM system
     openrouter_key = os.getenv('OPENROUTER_API_KEY', '')
     # Use the new API key provided
-    new_api_key = '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'
-    if new_api_key and new_api_key != 'missing_api_key':
-        os.environ['OPENROUTER_API_KEY'] = new_api_key
-        logger.info("New API key has been configured for FallbackLLM")
+    # Use the validated API key from environment/GitHub secrets
+    if openrouter_key and openrouter_key != 'missing_api_key':
+        os.environ['OPENROUTER_API_KEY'] = openrouter_key
+        logger.info("Using validated API key from environment")
     else:
-        # Fallback to environment variable if new key is not valid
-        if openrouter_key and openrouter_key != '' and openrouter_key != 'missing_api_key':
-            os.environ['OPENROUTER_API_KEY'] = openrouter_key
-            logger.info("Fallback to environment API key for FallbackLLM")
-        else:
-            logger.error("OPENROUTER_API_KEY is not properly set!")
-            logger.info(f"Current OPENROUTER_API_KEY value: {'SET' if openrouter_key else 'NOT SET'}")
-            if not openrouter_key:
-                logger.info("Please check that OPENROUTER_API_KEY is set in your environment variables")
-            elif openrouter_key == 'missing_api_key':
-                logger.info("OPENROUTER_API_KEY was set to placeholder 'missing_api_key', please update it")
+        logger.error("OPENROUTER_API_KEY is not properly set!")
+        logger.info(f"Current OPENROUTER_API_KEY value: {'SET' if openrouter_key else 'NOT SET'}")
+        if not openrouter_key:
+            logger.info("Please check that OPENROUTER_API_KEY is set in your environment variables")
+        elif openrouter_key == 'missing_api_key':
+            logger.info("OPENROUTER_API_KEY was set to placeholder 'missing_api_key', please update it")
     
     logger.info(f"OPENROUTER_API_KEY is set: {'SET' if os.getenv('OPENROUTER_API_KEY') else 'NOT SET'}")
     logger.info(f"OPENAI_API_KEY is set: {'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET'}")
