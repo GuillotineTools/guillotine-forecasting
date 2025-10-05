@@ -1,0 +1,45 @@
+name: Test All Fallback Models
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  test_fallback_models:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Test all fallback models
+        run: |
+          echo "=== Testing all models in fallback chain ==="
+          echo "This will test each model individually and save outputs"
+          poetry run python test_all_fallback_models.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_DISABLE_TRACE: "true"
+
+      - name: Upload model test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fallback-model-test-results
+          path: model_test_results/
+          retention-days: 7

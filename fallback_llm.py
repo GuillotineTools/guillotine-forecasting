@@ -234,12 +234,13 @@ def create_default_fallback_llm(
     model_chain = [
         "openrouter/deepseek/deepseek-chat",
         "openrouter/deepseek/deepseek-chat-v3",
-        "openrouter/deepseek/deepseek-r1:free",
-        "openrouter/meta-llama/llama-3.1-8b-instruct:free",
-        "openrouter/microsoft/phi-3-medium-128k-instruct:free",
-        "openrouter/mistralai/mistral-7b-instruct:free",
-        "openrouter/mistralai/mistral-nemo:free",
-        "openrouter/google/gemma-2-9b-it:free"
+        "openrouter/tngtech/deepseek-r1t2-chimera:free",
+        "openrouter/z-ai/glm-4.5-air:free",
+        "openrouter/tngtech/deepseek-r1t-chimera:free",
+        "openrouter/microsoft/mai-ds-r1:free",
+        "openrouter/qwen/qwen3-235b-a22b:free",
+        "openrouter/google/gemini-2.0-flash-exp:free",
+        "openrouter/meta-llama/llama-3.3-70b-instruct:free"
     ]
 
     return FallbackLLM(
