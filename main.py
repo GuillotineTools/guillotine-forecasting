@@ -1507,33 +1507,19 @@ def main():
     publish_reports = run_mode != "test_questions"
 
     # Initialize the bot with mixed model configuration using multiple API keys
-    # Using the correct API key configuration:
-    # - OpenRouter API key (from Metaculus with free credits) for OpenAI models
-    # - Personal API key from environment for DeepSeek and Kimi models
+    # Simplified API key handling - use the same approach as working test script
     openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-    personal_api_key = os.getenv('PERSONAL_API_KEY', openrouter_api_key)  # Fallback to OpenRouter key if personal key not set
 
     # Validate that we have the required OpenRouter API key
     if not openrouter_api_key:
         logger.error("OPENROUTER_API_KEY is not set. Please check your environment variables.")
         exit(1)
-    
-    # Set OpenRouter API key for fallback system
-    os.environ['OPENROUTER_API_KEY'] = openrouter_api_key
 
-    # Don't set OPENAI_API_KEY to OpenRouter key - let OpenRouter handle it properly
-    # This prevents OpenAI client from trying to authenticate directly with OpenAI
-    if os.getenv('OPENAI_API_KEY') == '1234567890' or not os.getenv('OPENAI_API_KEY'):
-        # Only set if we don't have a real OpenAI key
-        if 'OPENAI_API_KEY' in os.environ:
-            del os.environ['OPENAI_API_KEY']  # Remove to force OpenRouter routing
+    logger.info(f"Using OpenRouter API key: {openrouter_api_key[:10]}...{openrouter_api_key[-4:] if len(openrouter_api_key) > 14 else 'VALID'}")
 
     # Disable OpenAI tracing to prevent API key errors
     os.environ['OPENAI_DISABLE_TRACE'] = 'true'
     os.environ['OPENAI_ORGANIZATION'] = ''
-    
-    # Set the API key for proper routing
-    os.environ['OPENROUTER_API_KEY'] = openrouter_api_key
     
     template_bot = FallTemplateBot2025(
         research_reports_per_question=1,
