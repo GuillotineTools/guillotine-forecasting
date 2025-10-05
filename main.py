@@ -163,7 +163,7 @@ class FallTemplateBot2025(ForecastBot):
         defaults = super()._llm_config_defaults()
         # Override to suppress warnings for new forecaster models
         openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-        personal_api_key = "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"  # Personal key for DeepSeek and Kimi models
+        personal_api_key = None  # Removed hardcoded API key - use environment variables only
         
         # Validate that we have the required OpenRouter API key
         if not openrouter_api_key:
