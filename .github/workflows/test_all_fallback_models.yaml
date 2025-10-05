@@ -30,6 +30,8 @@ jobs:
         run: |
           echo "=== Testing all models in fallback chain ==="
           echo "This will test each model individually and save outputs"
+          # Set timezone to JST for consistent timestamps
+          sudo timedatectl set-timezone Asia/Tokyo
           poetry run python test_all_fallback_models.py
         env:
           GITHUB_ACTIONS: "true"

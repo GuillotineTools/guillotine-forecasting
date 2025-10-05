@@ -71,7 +71,7 @@ async def test_model_with_prompts(model_name, api_key, output_dir):
 
     results = {
         "model": model_name,
-        "test_timestamp": datetime.now().isoformat(),
+        "test_timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S JST'),
         "prompts": {}
     }
 
@@ -269,7 +269,7 @@ async def save_summary_report(all_results, working_models, failed_models, output
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write("# Fallback Model Test Summary\n\n")
-        f.write(f"**Test Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"**Test Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}\n")
         f.write(f"**Total Models Tested:** {len(all_results)}\n")
         f.write(f"**Working Models:** {len(working_models)}\n")
         f.write(f"**Failed Models:** {len(failed_models)}\n\n")
