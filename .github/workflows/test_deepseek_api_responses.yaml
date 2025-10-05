@@ -1,0 +1,45 @@
+name: Test DeepSeek API Responses
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  test_api_responses:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Test DeepSeek API responses
+        run: |
+          echo "=== Testing DeepSeek models with actual prompts ==="
+          echo "This will show the EXACT API responses from each model"
+          poetry run python test_deepseek_api_responses.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_DISABLE_TRACE: "true"
+
+      - name: Upload API response results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deepseek-api-responses
+          path: deepseek_api_responses.txt
+          retention-days: 7
