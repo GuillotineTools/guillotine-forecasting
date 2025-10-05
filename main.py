@@ -206,9 +206,12 @@ class FallTemplateBot2025(ForecastBot):
         1  # Set this to whatever works for your search-provider/ai-model rate limits
     )
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
-    
-    # Add rate limiting for LLM calls
-    _llm_rate_limiter = asyncio.Semaphore(5)  # Limit concurrent LLM calls
+
+    # Enhanced rate limiting for tested models (conservative for 15-min target)
+    _llm_rate_limiter = asyncio.Semaphore(2)  # Reduced concurrent LLM calls for stability
+
+    # Add delay between LLM calls to respect rate limits
+    _llm_call_delay = float(os.getenv('FORECAST_RATE_LIMIT_DELAY', '2'))  # 2 second default delay
 
     def get_llm(self, llm_name: str, llm_type: str = "llm") -> GeneralLlm | FallbackLLM:
         """
@@ -219,6 +222,14 @@ class FallTemplateBot2025(ForecastBot):
         else:
             # Fallback to parent class behavior if llm not found
             return super().get_llm(llm_name, llm_type)
+
+    async def rate_limited_llm_call(self, llm: GeneralLlm | FallbackLLM, prompt: str) -> str:
+        """
+        Make a rate-limited LLM call with delay to respect API limits.
+        """
+        await asyncio.sleep(self._llm_call_delay)  # Add delay before call
+        async with self._llm_rate_limiter:  # Limit concurrent calls
+            return await llm.invoke(prompt)
 
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def run_research(self, question: MetaculusQuestion) -> str:
