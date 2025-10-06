@@ -13,6 +13,8 @@ concurrency:
 jobs:
   potus_forecast_job:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       # Setup repository
       - name: Check out repository
