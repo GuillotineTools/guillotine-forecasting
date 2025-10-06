@@ -50,11 +50,11 @@ async def test_real_questions():
 
         # Try different tournaments to find real questions
         tournaments_to_try = [
-            MetaculusApi.CURRENT_AI_COMPETITION_ID if hasattr(MetaculusApi, 'CURRENT_AI_COMPETITION_ID') else None,
-            MetaculusApi.CURRENT_MINIBENCH_ID if hasattr(MetaculusApi, 'CURRENT_MINIBENCH_ID') else None,
+            32813,  # AI Competition (actual ID)
+            "minibench",  # MiniBench (actual ID)
             "brightline-watch",  # Brightline Watch tournament
             "brightlinewatch",  # Alternative Brightline Watch name
-            "general",  # Try general questions
+            None,  # Try general questions
         ]
 
         real_questions = []
@@ -62,17 +62,17 @@ async def test_real_questions():
 
         for tournament in tournaments_to_try:
             if tournament is None:
-                continue
-
-            print(f"🔍 Checking tournament: {tournament}")
-
-            try:
-                if tournament == "general":
-                    # Get general open questions
+                print("🔍 Checking general open questions")
+                try:
                     questions = await MetaculusApi.get_questions_matching_filter(
                         ApiFilter(allowed_statuses=["open"])
                     )
-                else:
+                except Exception as e:
+                    print(f"❌ Failed to get general questions: {str(e)}")
+                    continue
+            else:
+                print(f"🔍 Checking tournament: {tournament}")
+                try:
                     # Get tournament-specific questions
                     questions = await MetaculusApi.get_questions_matching_filter(
                         ApiFilter(
@@ -80,17 +80,16 @@ async def test_real_questions():
                             allowed_tournaments=[tournament]
                         )
                     )
+                except Exception as e:
+                    print(f"❌ Failed to get questions for '{tournament}': {str(e)}")
+                    continue
 
-                print(f"✅ Found {len(questions)} open questions for tournament '{tournament}'")
+            print(f"✅ Found {len(questions)} open questions for '{tournament if tournament else 'general'}'")
 
-                if questions:
-                    real_questions = questions
-                    tournament_used = tournament
-                    break
-
-            except Exception as e:
-                print(f"❌ Failed to get questions for '{tournament}': {str(e)}")
-                continue
+            if questions:
+                real_questions = questions
+                tournament_used = tournament if tournament else "general"
+                break
 
         if not real_questions:
             print("❌ No real questions found!")
@@ -137,10 +136,12 @@ Your response should be detailed and evidence-based.
 
         try:
             print(f"🔄 Calling researcher model...")
+            print(f"   Model chain: {researcher_llm.model_chain}")
             research_response = await researcher_llm.invoke(research_prompt)
             print(f"✅ Research completed successfully!")
             print(f"📥 Research response length: {len(research_response)} characters")
             print(f"📄 Research preview: {research_response[:200]}...")
+            # The specific model that responded will be in the logs from FallbackLLM
 
         except Exception as e:
             print(f"❌ Research failed: {str(e)}")
@@ -175,10 +176,12 @@ Consider the research evidence carefully.
             try:
                 forecaster_prompt = f"{forecast_prompt}\n\nAs Forecaster {i+1}, provide your independent assessment:"
                 print(f"      🔄 Calling forecaster {i+1} model...")
+                print(f"         Model chain: {forecaster_llm.model_chain}")
                 response = await forecaster_llm.invoke(forecaster_prompt)
                 individual_forecasts.append(response)
                 print(f"      ✅ Forecast {i+1} completed ({len(response)} chars)")
                 print(f"      📄 Forecast {i+1} preview: {response[:100]}...")
+                # The specific model that responded will be in the FallbackLLM logs
 
                 await asyncio.sleep(2)  # Rate limiting
 
@@ -210,10 +213,12 @@ Synthesize thoughtfully and provide evidence-based conclusion.
 
         try:
             print(f"🔄 Calling synthesizer model...")
+            print(f"   Model chain: {synthesizer_llm.model_chain}")
             synthesis_response = await synthesizer_llm.invoke(synthesis_prompt)
             print(f"✅ Synthesis completed successfully!")
             print(f"📥 Synthesis response length: {len(synthesis_response)} characters")
             print(f"📄 Synthesis preview: {synthesis_response[:200]}...")
+            # The specific model that responded will be in the FallbackLLM logs
 
         except Exception as e:
             print(f"❌ Synthesis failed: {str(e)}")
