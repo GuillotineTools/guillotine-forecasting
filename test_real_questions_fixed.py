@@ -107,8 +107,36 @@ async def test_real_questions():
                 break
 
         if not real_questions:
-            print("❌ No real questions found!")
-            return False
+            print("⚠️  No questions found from tournament-specific search")
+            print("🔍 Searching for Brightline Watch questions in all open questions...")
+
+            try:
+                all_questions = await MetaculusApi.get_questions_matching_filter(
+                    ApiFilter(allowed_statuses=["open"], number_of_questions=50)
+                )
+                print(f"✅ Found {len(all_questions)} total open questions")
+
+                # Look for Brightline Watch questions manually
+                brightline_questions = []
+                for q in all_questions:
+                    if (hasattr(q, 'page_url') and 'brightline' in str(q.page_url).lower()) or \
+                       (hasattr(q, 'question_text') and 'brightline' in str(q.question_text).lower()):
+                        brightline_questions.append(q)
+                        print(f"🎯 Found Brightline Watch question: {q.question_text[:80]}...")
+                        if hasattr(q, 'tournament') and q.tournament:
+                            print(f"   📋 Tournament ID: {q.tournament}")
+
+                if brightline_questions:
+                    real_questions = brightline_questions
+                    tournament_used = "found_by_search"
+                    print(f"✅ Found {len(brightline_questions)} Brightline Watch questions by search")
+                else:
+                    print("❌ No Brightline Watch questions found anywhere")
+                    return False
+
+            except Exception as e:
+                print(f"❌ Search failed: {str(e)}")
+                return False
 
         print(f"✅ Using {len(real_questions)} questions from tournament: {tournament_used}")
 
