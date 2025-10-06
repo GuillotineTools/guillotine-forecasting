@@ -52,6 +52,8 @@ async def test_real_questions():
         tournaments_to_try = [
             MetaculusApi.CURRENT_AI_COMPETITION_ID if hasattr(MetaculusApi, 'CURRENT_AI_COMPETITION_ID') else None,
             MetaculusApi.CURRENT_MINIBENCH_ID if hasattr(MetaculusApi, 'CURRENT_MINIBENCH_ID') else None,
+            "brightline-watch",  # Brightline Watch tournament
+            "brightlinewatch",  # Alternative Brightline Watch name
             "general",  # Try general questions
         ]
 
@@ -302,29 +304,6 @@ Synthesize thoughtfully and provide evidence-based conclusion.
         print(f"✅ Local copy saved to: {local_output_file}")
         print(f"📂 All outputs in: {output_dir.absolute()}")
 
-            f.write(f"## Research Output\n\n")
-            f.write(f"{research_response}\n\n")
-
-            f.write(f"## Individual Forecasts\n\n")
-            for i, forecast in enumerate(individual_forecasts, 1):
-                f.write(f"### Forecaster {i}\n\n")
-                f.write(f"{forecast}\n\n")
-
-            f.write(f"## Synthesis Output\n\n")
-            f.write(f"{synthesis_response}\n\n")
-
-            f.write(f"## System Performance\n\n")
-            f.write(f"✅ API Authentication: Working with GitHub secrets\n")
-            f.write(f"✅ Free Model Configuration: All 9 models accessible\n")
-            f.write(f"✅ Real Questions: Successfully found and processed\n")
-            f.write(f"✅ Detailed Logging: All API calls logged\n")
-            f.write(f"✅ Output Organization: Saved to /outputs/ folder\n\n")
-
-            f.write(f"**🎯 CONCLUSION: Real multiforecaster process working perfectly!**\n")
-
-        print(f"✅ Comprehensive output saved to: {output_file}")
-        print(f"📂 All outputs in: {output_dir.absolute()}")
-
         # Check if the multiforecaster actually worked
         if "All 9 models in fallback chain failed" in research_response or len(individual_forecasts) == 0 or "All 9 models in fallback chain failed" in synthesis_response:
             print(f"\n❌ MULTIFORECASTER PROCESS FAILED!")
@@ -349,7 +328,7 @@ Synthesize thoughtfully and provide evidence-based conclusion.
         traceback.print_exc()
 
         # Try to create an error report file
-        error_file = local_output_dir / f"error_report_{timestamp}.md"
+        error_file = output_dir / f"error_report_{timestamp}.md"
         with open(error_file, 'w', encoding='utf-8') as f:
             f.write(f"# Test Error Report\n\n")
             f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
