@@ -38,7 +38,7 @@ jobs:
           echo "3. Complete multiforecaster process (research → forecasts → synthesis)"
           echo "4. Processing actual Metaculus questions (not test questions)"
           echo "5. All outputs saved to /outputs/ folder"
-          poetry run python test_simple.py
+          poetry run python test_real_questions_fixed.py
         env:
           GITHUB_ACTIONS: "true"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
