@@ -104,7 +104,7 @@ class FallbackLLM:
                 # Attempt to invoke the model
                 logger.info(f"Making API call to model: {model_name}")
                 main_logger.info(f"=== MAKING API CALL TO {model_name} ===")
-                main_logger.info(f"API Key: {'***' + api_key[-4:] if api_key else 'None'}")
+                main_logger.info(f"API Key: {'***' + self.api_key[-4:] if self.api_key else 'None'}")
                 main_logger.info(f"Temperature: {self.temperature}")
                 main_logger.info(f"Timeout: {self.timeout}")
                 main_logger.info(f"Prompt length: {len(prompt)} characters")

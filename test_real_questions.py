@@ -265,6 +265,13 @@ Synthesize thoughtfully and provide evidence-based conclusion.
         print(f"✅ Comprehensive output saved to: {output_file}")
         print(f"📂 All outputs in: {output_dir.absolute()}")
 
+        # Check if the multiforecaster actually worked
+        if "All 9 models in fallback chain failed" in research_response or len(individual_forecasts) == 0 or "All 9 models in fallback chain failed" in synthesis_response:
+            print(f"\n❌ MULTIFORECASTER PROCESS FAILED!")
+            print(f"❌ All API calls failed - no successful model responses")
+            print(f"❌ No actual forecasting completed")
+            return False
+
         print(f"\n" + "=" * 70)
         print(f"🎉 REAL QUESTION MULTIFORECASTER TEST COMPLETED!")
         print(f"✅ Used real Metaculus question from {tournament_used}")
