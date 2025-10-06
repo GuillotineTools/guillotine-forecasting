@@ -1,0 +1,52 @@
+name: Test Brightline Multiforecaster
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_multiforecaster:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Test Brightline multiforecaster process
+        run: |
+          echo "=== Testing Complete Multiforecaster Process ==="
+          echo "This will demonstrate:"
+          echo "1. Research phase with free models"
+          echo "2. Individual forecasts from multiple models"
+          echo "3. Synthesis phase combining predictions"
+          echo "4. Comprehensive output to /outputs/ folder"
+          echo "5. Detailed model usage logging"
+          poetry run python test_brightline_multiforecaster.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENAI_DISABLE_TRACE: "true"
+
+      - name: Upload multiforecaster outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brightline-multiforecaster-${{ github.run_number }}
+          path: outputs/
+          retention-days: 7

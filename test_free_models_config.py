@@ -59,10 +59,14 @@ Your response should include:
         print(f"\n📝 Testing with forecast prompt ({len(test_prompt)} characters)...")
 
         try:
+            print(f"🔄 Testing model invocation...")
             response = await default_llm.invoke(test_prompt)
 
             print(f"✅ SUCCESS! Free model configuration works!")
             print(f"📥 Response length: {len(response)} characters")
+            print(f"🤖 Models tried (in order):")
+            for i, model in enumerate(default_llm.model_chain, 1):
+                print(f"   {i}. {model}")
             print(f"📄 Response preview:")
             print("=" * 40)
             print(response[:500])
