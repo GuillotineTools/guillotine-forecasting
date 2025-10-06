@@ -1,0 +1,45 @@
+name: Test Model Logging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_model_logging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Test model identification
+        run: |
+          echo "=== Testing Model Identification ==="
+          echo "This will show exactly which model responds from the fallback chain"
+          poetry run python test_model_logging.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_DISABLE_TRACE: "true"
+
+      - name: Upload model logging results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: model-logging-${{ github.run_number }}
+          path: outputs/model_identification_test_*.md
+          retention-days: 7
