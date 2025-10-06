@@ -309,6 +309,18 @@ Synthesize thoughtfully and provide evidence-based conclusion.
         print(f"✅ Local copy saved to: {local_output_file}")
         print(f"📂 All outputs in: {output_dir.absolute()}")
 
+        # In GitHub Actions, also commit outputs to make them accessible
+        if os.getenv('GITHUB_ACTIONS'):
+            try:
+                import subprocess
+                subprocess.run(['git', 'add', f'{local_output_file}'], check=True, capture_output=True)
+                subprocess.run(['git', '-c', 'user.name=github-actions', '-c', 'user.email=github-actions@github.com',
+                               'commit', '-m', f'Add multiforecaster output from {tournament_used} tournament\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>'],
+                               check=True, capture_output=True)
+                print(f"✅ Output committed to git repository")
+            except Exception as e:
+                print(f"⚠️  Could not commit output to git: {e}")
+
         # Check if the multiforecaster actually worked
         if "All 9 models in fallback chain failed" in research_response or len(individual_forecasts) == 0 or "All 9 models in fallback chain failed" in synthesis_response:
             print(f"\n❌ MULTIFORECASTER PROCESS FAILED!")

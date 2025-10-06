@@ -101,8 +101,13 @@ class FallbackLLM:
                     **self.kwargs
                 )
 
-                # Attempt to invoke the model
+                # Attempt to invoke the model with console output
                 logger.info(f"Making API call to model: {model_name}")
+                print(f"\n🔄 CALLING MODEL: {model_name}")
+                print(f"🔑 API Key: {'***' + self.api_key[-4:] if self.api_key else 'None'}")
+                print(f"🌡️  Temperature: {self.temperature}")
+                print(f"⏱️  Timeout: {self.timeout}s")
+                print(f"📝 Prompt length: {len(prompt)} characters")
                 main_logger.info(f"=== MAKING API CALL TO {model_name} ===")
                 main_logger.info(f"API Key: {'***' + self.api_key[-4:] if self.api_key else 'None'}")
                 main_logger.info(f"Temperature: {self.temperature}")
@@ -110,30 +115,41 @@ class FallbackLLM:
                 main_logger.info(f"Prompt length: {len(prompt)} characters")
                 main_logger.info(f"Prompt preview:\n{prompt[:200]}{'...' if len(prompt) > 200 else ''}")
                 main_logger.info("=== END API CALL DETAILS ===\n")
+                print("⏳ Waiting for response...\n")
 
                 response = await llm.invoke(prompt)
 
-                # Success! Log and return
+                # Success! Log and return with console output for GitHub Actions
                 logger.info(f"Model {model_name} succeeded")
+                print(f"\n🎯 MODEL SUCCESS: {model_name}")
+                print(f"📊 Response length: {len(response)} characters")
+                print(f"📄 Response preview: {response[:200]}{'...' if len(response) > 200 else ''}")
                 main_logger.info(f"=== SUCCESSFUL RESPONSE FROM {model_name} ===")
                 main_logger.info(f"Response length: {len(response)} characters")
                 main_logger.info(f"Response preview:\n{response[:300]}{'...' if len(response) > 300 else ''}")
                 main_logger.info(f"Full response:\n{response}")
                 main_logger.info("=== END RESPONSE ===\n")
+                print("✅ API CALL COMPLETED SUCCESSFULLY\n")
                 return response
 
             except Exception as e:
                 error_msg = f"Model {model_name} failed: {str(e)}"
                 logger.warning(error_msg)
+                print(f"\n❌ MODEL FAILED: {model_name}")
+                print(f"🚫 Error: {str(e)}")
                 main_logger.info(f"=== MODEL {model_name} FAILED ===")
                 main_logger.info(error_msg)
                 main_logger.info("=== END ERROR ===\n")
+                print("⏭️  TRYING NEXT MODEL IN CHAIN\n")
                 last_error = e
                 continue
 
         # All models failed
         final_error_msg = f"All {len(self.model_chain)} models in fallback chain failed. Last error: {last_error}"
         logger.error(final_error_msg)
+        print(f"\n💥 ALL MODELS FAILED")
+        print(f"❌ Tried {len(self.model_chain)} models in fallback chain")
+        print(f"🚫 Last error: {last_error}")
         main_logger.info("=== ALL MODELS IN FALLBACK CHAIN FAILED ===")
         main_logger.info(final_error_msg)
         main_logger.info("=== END ERROR ===\n")
