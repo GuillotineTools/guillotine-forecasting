@@ -21,35 +21,51 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install poetry
-        uses: snok/install-poetry@v1
-        with:
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          installer-parallel: true
-
       - name: Install dependencies
-        run: poetry install --no-interaction --no-root
+        run: |
+          echo "=== Installing dependencies ==="
+          pip install forecasting-tools python-dotenv
+          pip list
+
+      - name: Test API connectivity
+        run: |
+          echo "=== Testing API connectivity ==="
+          python3 -c "
+import os
+print('✅ Python environment working')
+print(f'GITHUB_ACTIONS: {os.getenv(\"GITHUB_ACTIONS\")}')
+print(f'OPENROUTER_API_KEY configured: {\"YES\" if os.getenv(\"OPENROUTER_API_KEY\") else \"NO\"}')
+print(f'METACULUS_TOKEN configured: {\"YES\" if os.getenv(\"METACULUS_TOKEN\") else \"NO\"}')
+
+try:
+    from forecasting_tools import MetaculusApi
+    print('✅ forecasting-tools imported successfully')
+except Exception as e:
+    print(f'❌ forecasting-tools import failed: {e}')
+"
 
       - name: Diagnose Brightline Watch tournament
         run: |
           echo "=== Finding Brightline Watch Tournament ID ==="
-          echo "This will:"
           echo "1. Find the actual tournament ID for Brightline Watch questions"
           echo "2. Examine question structure and attributes"
           echo "3. Save tournament information for debugging"
-          poetry run python find_brightline_tournament.py
+          python3 find_brightline_tournament.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENAI_DISABLE_TRACE: "true"
 
       - name: Test multiforecaster on real questions
         run: |
           echo "=== Testing Multiforecaster on Real Metaculus Questions ==="
-          echo "This will demonstrate:"
           echo "1. Finding real open questions from available tournaments"
           echo "2. Detailed API call logging showing exact models used"
           echo "3. Complete multiforecaster process (research → forecasts → synthesis)"
           echo "4. Processing actual Metaculus questions (not test questions)"
           echo "5. All outputs saved to /outputs/ folder"
-          poetry run python test_real_questions_fixed.py
+          python3 test_real_questions_fixed.py
         env:
           GITHUB_ACTIONS: "true"
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
