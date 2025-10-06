@@ -48,63 +48,83 @@ async def test_real_questions():
         # Step 1: Find real questions
         print(f"\n📊 STEP 1: FINDING REAL QUESTIONS")
 
-        # Try different tournaments to find real questions
-        tournaments_to_try = [
-            32813,  # AI Competition (actual ID)
-            "minibench",  # MiniBench (actual ID)
-            "brightlinewatch",  # Brightline Watch (from URL /c/brightlinewatch/)
-            "brightline-watch",  # Alternative format
-            "brightline_watch",  # Alternative format
-            "brightline",  # Alternative format
-            None,  # Try general questions
-        ]
+        # Try specific known Brightline Watch question first to find tournament ID
+        print(f"🔍 Testing known Brightline Watch question ID 31315...")
+        try:
+            from forecasting_tools import MetaculusApi
+            specific_question = await MetaculusApi.get_question_by_id(31315)
+            if specific_question:
+                print(f"✅ Found question: {specific_question.question_text[:80]}...")
+                if hasattr(specific_question, 'tournament') and specific_question.tournament:
+                    print(f"🎯 TOURNAMENT ID FOUND: {specific_question.tournament}")
+                    real_questions = [specific_question]
+                    tournament_used = specific_question.tournament
+                elif hasattr(specific_question, 'tournaments') and specific_question.tournaments:
+                    print(f"🎯 TOURNAMENTS FOUND: {specific_question.tournaments}")
+                    tournament_id = specific_question.tournaments[0] if specific_question.tournaments else None
+                    real_questions = [specific_question]
+                    tournament_used = tournament_id
+                else:
+                    print("⚠️  No tournament info found on specific question")
+        except Exception as e:
+            print(f"❌ Could not fetch specific question: {str(e)}")
 
-        real_questions = []
-        tournament_used = None
+        # If we haven't found questions yet, try tournaments
+        if not real_questions:
+            print(f"\n📊 Searching tournaments for open questions...")
+            tournaments_to_try = [
+                32813,  # AI Competition (actual ID)
+                "minibench",  # MiniBench (actual ID)
+                "brightlinewatch",  # Brightline Watch (from URL /c/brightlinewatch/)
+                "brightline-watch",  # Alternative format
+                "brightline_watch",  # Alternative format
+                "brightline",  # Alternative format
+                None,  # Try general questions
+            ]
 
-        for tournament in tournaments_to_try:
-            if tournament is None:
-                print("🔍 Checking general open questions")
-                try:
-                    questions = await MetaculusApi.get_questions_matching_filter(
-                        ApiFilter(allowed_statuses=["open"])
-                    )
-                except Exception as e:
-                    error_str = str(e)
-                    print(f"❌ Failed to get general questions: {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
-                    if 'HTTPError' in error_str and 'Response reason:' in error_str:
-                        import re
-                        http_match = re.search(r'Reason: (\w+)', error_str)
-                        if http_match:
-                            print(f"   HTTP Error: {http_match.group(1)}")
-                    continue
-            else:
-                print(f"🔍 Checking tournament: {tournament}")
-                try:
-                    # Get tournament-specific questions
-                    questions = await MetaculusApi.get_questions_matching_filter(
-                        ApiFilter(
-                            allowed_statuses=["open"],
-                            allowed_tournaments=[tournament]
+            for tournament in tournaments_to_try:
+                if tournament is None:
+                    print("🔍 Checking general open questions")
+                    try:
+                        questions = await MetaculusApi.get_questions_matching_filter(
+                            ApiFilter(allowed_statuses=["open"])
                         )
-                    )
-                except Exception as e:
-                    error_str = str(e)
-                    print(f"❌ Failed to get questions for '{tournament}': {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
-                    if 'HTTPError' in error_str and 'Response reason:' in error_str:
-                        # Extract more detailed HTTP error info
-                        import re
-                        http_match = re.search(r'Reason: (\w+)', error_str)
-                        if http_match:
-                            print(f"   HTTP Error: {http_match.group(1)}")
-                    continue
+                    except Exception as e:
+                        error_str = str(e)
+                        print(f"❌ Failed to get general questions: {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
+                        if 'HTTPError' in error_str and 'Response reason:' in error_str:
+                            import re
+                            http_match = re.search(r'Reason: (\w+)', error_str)
+                            if http_match:
+                                print(f"   HTTP Error: {http_match.group(1)}")
+                        continue
+                else:
+                    print(f"🔍 Checking tournament: {tournament}")
+                    try:
+                        # Get tournament-specific questions
+                        questions = await MetaculusApi.get_questions_matching_filter(
+                            ApiFilter(
+                                allowed_statuses=["open"],
+                                allowed_tournaments=[tournament]
+                            )
+                        )
+                    except Exception as e:
+                        error_str = str(e)
+                        print(f"❌ Failed to get questions for '{tournament}': {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
+                        if 'HTTPError' in error_str and 'Response reason:' in error_str:
+                            # Extract more detailed HTTP error info
+                            import re
+                            http_match = re.search(r'Reason: (\w+)', error_str)
+                            if http_match:
+                                print(f"   HTTP Error: {http_match.group(1)}")
+                        continue
 
-            print(f"✅ Found {len(questions)} open questions for '{tournament if tournament else 'general'}'")
+                print(f"✅ Found {len(questions)} open questions for '{tournament if tournament else 'general'}'")
 
-            if questions:
-                real_questions = questions
-                tournament_used = tournament if tournament else "general"
-                break
+                if questions:
+                    real_questions = questions
+                    tournament_used = tournament if tournament else "general"
+                    break
 
         if not real_questions:
             print("⚠️  No questions found from tournament-specific search")
