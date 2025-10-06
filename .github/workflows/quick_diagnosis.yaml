@@ -1,0 +1,67 @@
+name: Quick Question Diagnosis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  quick_diagnosis_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install forecasting-tools python-dotenv
+
+      - name: Quick Diagnosis
+        run: |
+          python3 << 'EOF'
+          import os
+          import asyncio
+          os.environ['GITHUB_ACTIONS'] = 'true'
+
+          async def quick_diagnosis():
+              from forecasting_tools import MetaculusApi, ApiFilter
+
+              print("🔍 QUICK QUESTION DIAGNOSIS")
+              print("=" * 40)
+
+              # Test 1: Check specific POTUS question
+              try:
+                  q = await MetaculusApi.get_question_by_post_id(39988)
+                  print(f"✅ Question 39988: {q.question_text[:80]}...")
+                  print(f"   Status: {getattr(q, 'status', 'Unknown')}")
+                  print(f"   URL: {q.page_url}")
+              except Exception as e:
+                  print(f"❌ Question 39988 failed: {e}")
+
+              # Test 2: Search for POTUS-related terms in recent questions
+              try:
+                  api_filter = ApiFilter(statuses=["open"], number_of_questions=100)
+                  questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+                  print(f"✅ Found {len(questions)} open questions")
+
+                  potus_count = 0
+                  for q in questions:
+                      if any(term in q.question_text.lower() for term in ['potus', 'president', 'trump', 'biden', 'bondi']):
+                          potus_count += 1
+                          print(f"   POTUS: {q.question_text[:60]}...")
+                          if potus_count >= 5:
+                              break
+
+                  if potus_count == 0:
+                      print("❌ NO POTUS QUESTIONS FOUND IN 100 OPEN QUESTIONS")
+              except Exception as e:
+                  print(f"❌ Search failed: {e}")
+
+          asyncio.run(quick_diagnosis())
+          EOF
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
