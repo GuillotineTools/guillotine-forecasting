@@ -1,0 +1,246 @@
+name: Diagnose Question Discovery
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose_questions_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing diagnostic tools ==="
+          pip install forecasting-tools python-dotenv
+
+      - name: Diagnose Question Discovery
+        run: |
+          echo "=== Starting Question Discovery Diagnosis at $(date) ==="
+
+          python3 << 'EOF'
+          import os
+          import asyncio
+          from datetime import datetime
+
+          os.environ['GITHUB_ACTIONS'] = 'true'
+
+          async def diagnose_question_discovery():
+              """Diagnose why POTUS questions aren't being found."""
+              print("🔍 DIAGNOSING QUESTION DISCOVERY")
+              print("=" * 60)
+
+              # Check environment
+              metaculus_token = os.getenv('METACULUS_TOKEN')
+              if not metaculus_token:
+                  print("❌ METACULUS_TOKEN not configured")
+                  return False
+
+              print("✅ METACULUS_TOKEN configured")
+
+              try:
+                  from forecasting_tools import MetaculusApi, ApiFilter
+
+                  print("✅ MetaculusApi imported successfully")
+
+                  # DIAGNOSIS 1: Check if we can access the specific POTUS question
+                  print("\\n🔍 DIAGNOSIS 1: Direct POTUS question access")
+                  try:
+                      question = await MetaculusApi.get_question_by_post_id(39988)
+                      print(f"✅ Successfully accessed question 39988")
+                      print(f"   Title: {question.question_text[:100]}...")
+                      print(f"   URL: {question.page_url}")
+                      print(f"   Type: {type(question).__name__}")
+                      print(f"   Status: {getattr(question, 'status', 'Unknown')}")
+                      print(f"   Resolve Time: {getattr(question, 'resolve_time', 'Unknown')}")
+
+                      # Check if question is actually open and forecastable
+                      if hasattr(question, 'status') and question.status == 'open':
+                          print("✅ Question is OPEN and forecastable")
+                      else:
+                          print(f"⚠️  Question status: {getattr(question, 'status', 'Unknown')}")
+                          print("❌ Question might not be open for forecasting")
+
+                  except Exception as e:
+                      print(f"❌ Cannot access question 39988: {e}")
+
+                  # DIAGNOSIS 2: Search for POTUS-related content in recent questions
+                  print("\\n🔍 DIAGNOSIS 2: Content-based search for POTUS questions")
+                  try:
+                      api_filter = ApiFilter(
+                          statuses=["open"],
+                          number_of_questions=200  # Get more questions to search
+                      )
+                      all_questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+                      print(f"✅ Retrieved {len(all_questions)} open questions")
+
+                      # Search for various POTUS-related terms
+                      potus_terms = [
+                          'potus', 'president', 'trump', 'biden', 'white house',
+                          'cabinet', 'attorney general', 'bondi', 'secretary',
+                          'executive', 'administration', 'inauguration', 'election'
+                      ]
+
+                      found_questions = []
+                      for term in potus_terms:
+                          term_questions = []
+                          for q in all_questions:
+                              if term.lower() in q.question_text.lower():
+                                  term_questions.append(q)
+
+                          if term_questions:
+                              print(f"✅ Found {len(term_questions)} questions with '{term}':")
+                              found_questions.extend(term_questions)
+                              for q in term_questions[:3]:  # Show first 3
+                                  print(f"   - {q.question_text[:80]}...")
+                                  print(f"     URL: {q.page_url}")
+                                  print(f"     ID: {q.id}")
+
+                      if found_questions:
+                          print(f"\\n✅ TOTAL POTUS-RELATED QUESTIONS FOUND: {len(found_questions)}")
+                      else:
+                          print("\\n❌ NO POTUS-RELATED QUESTIONS FOUND IN 200 OPEN QUESTIONS")
+                          print("This suggests POTUS questions might:")
+                          print("  - Be in a specific tournament/community")
+                          print("  - Be resolved/closed")
+                          print("  - Use different terminology")
+
+                  except Exception as e:
+                      print(f"❌ Content search failed: {e}")
+
+                  # DIAGNOSIS 3: Check for specific tournaments/communities
+                  print("\\n🔍 DIAGNOSIS 3: Tournament and community exploration")
+
+                  # Try to find tournaments by checking question attributes
+                  try:
+                      # Get a sample of questions and examine their attributes
+                      api_filter = ApiFilter(
+                          statuses=["open"],
+                          number_of_questions=50
+                      )
+                      sample_questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+
+                      print(f"✅ Analyzing {len(sample_questions)} sample questions for tournament info")
+
+                      tournaments_found = set()
+                      communities_found = set()
+
+                      for q in sample_questions[:10]:  # Check first 10
+                          print(f"\\nQuestion: {q.question_text[:60]}...")
+                          print(f"Attributes: {[attr for attr in dir(q) if not attr.startswith('_') and not callable(getattr(q, attr))][-10:]}")
+
+                          # Check for tournament-related attributes
+                          for attr in ['tournament', 'tournaments', 'community', 'communities', 'group', 'series']:
+                              if hasattr(q, attr):
+                                  value = getattr(q, attr)
+                                  if value:
+                                      print(f"  {attr}: {value}")
+                                      if 'tournament' in attr.lower():
+                                          tournaments_found.add(str(value))
+                                      elif 'community' in attr.lower():
+                                          communities_found.add(str(value))
+
+                          # Check page_url for community indicators
+                          if hasattr(q, 'page_url') and '/c/' in q.page_url:
+                              community_part = q.page_url.split('/c/')[1].split('/')[0]
+                              communities_found.add(community_part)
+                              print(f"  Community from URL: {community_part}")
+
+                      print(f"\\n📊 Tournaments found: {list(tournaments_found)}")
+                      print(f"📊 Communities found: {list(communities_found)}")
+
+                  except Exception as e:
+                      print(f"❌ Tournament analysis failed: {e}")
+
+                  # DIAGNOSIS 4: Try known working tournaments to understand structure
+                  print("\\n🔍 DIAGNOSIS 4: Understanding working tournament structure")
+
+                  working_tournaments = [32813, "minibench", 32828]
+
+                  for tournament_id in working_tournaments:
+                      try:
+                          print(f"\\n   Examining tournament {tournament_id}...")
+                          questions = MetaculusApi.get_all_open_questions_from_tournament(tournament_id)
+                          print(f"   ✅ Found {len(questions)} questions")
+
+                          if questions:
+                              q = questions[0]
+                              print(f"   Sample question: {q.question_text[:60]}...")
+                              print(f"   Sample attributes: {[attr for attr in dir(q) if not attr.startswith('_') and 'tournament' in attr.lower()]}")
+
+                      except Exception as e:
+                          print(f"   ❌ Tournament {tournament_id} failed: {e}")
+
+                  # DIAGNOSIS 5: Create comprehensive report
+                  print("\\n📋 DIAGNOSIS SUMMARY:")
+                  print("=" * 40)
+
+                  timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                  report_file = f"question_diagnosis_{timestamp}.md"
+
+                  content = f"""# Question Discovery Diagnosis Report
+
+                  **Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                  **Purpose:** Understand why POTUS questions aren't being found
+
+                  ## Key Findings:
+
+                  ### Direct Question Access (39988):
+                  {'✅ SUCCESS' if 'question' in locals() else '❌ FAILED'} - Can access specific POTUS question
+
+                  ### Content Search Results:
+                  {'✅ FOUND POTUS-RELATED QUESTIONS' if 'found_questions' in locals() and found_questions else '❌ NO POTUS QUESTIONS FOUND'}
+
+                  ### Tournament Structure:
+                  - Tournaments discovered: {list(tournaments_found) if 'tournaments_found' in locals() else 'None'}
+                  - Communities discovered: {list(communities_found) if 'communities_found' in locals() else 'None'}
+
+                  ## Recommendations:
+
+                  1. {'Use direct question access for 39988 if open' if 'question' in locals() else 'Investigate why question 39988 access failed'}
+                  2. {'Use content search with found terms' if 'found_questions' in locals() and found_questions else 'Need better search strategy'}
+                  3. {'Investigate discovered tournaments/communities' if tournaments_found or communities_found else 'Explore tournament structure further'}
+
+                  **Status: Diagnosis completed successfully**
+                  """
+
+                  with open(report_file, 'w') as f:
+                      f.write(content)
+
+                  print(f"✅ Diagnosis report saved: {report_file}")
+                  return True
+
+              except Exception as e:
+                  print(f"❌ Diagnosis failed: {e}")
+                  import traceback
+                  traceback.print_exc()
+                  return False
+
+          # Run diagnosis
+          success = asyncio.run(diagnose_question_discovery())
+          if success:
+              print("\\n🎉 QUESTION DISCOVERY DIAGNOSIS COMPLETED!")
+          else:
+              print("\\n❌ QUESTION DISCOVERY DIAGNOSIS FAILED!")
+          EOF
+
+          echo "=== Question discovery diagnosis completed at $(date) ==="
+
+      - name: Upload Diagnosis Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: question-diagnosis-${{ github.run_number }}
+          path: question_diagnosis_*.md
+          retention-days: 7
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
