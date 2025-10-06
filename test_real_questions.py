@@ -223,10 +223,10 @@ Synthesize thoughtfully and provide evidence-based conclusion.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = output_dir / f"real_question_multiforecaster_{timestamp}.md"
 
-        # Also copy to local outputs for immediate access
+        # Also save to local outputs for immediate access
         local_output_dir = Path("outputs")
         local_output_dir.mkdir(exist_ok=True)
-        local_output_file = local_output_dir / output_file.name
+        local_output_file = local_output_dir / f"real_question_multiforecaster_{timestamp}.md"
 
         content = f"""# Real Question Multiforecaster Test
 
@@ -344,8 +344,21 @@ Synthesize thoughtfully and provide evidence-based conclusion.
 
     except Exception as e:
         print(f"❌ Real question test failed: {str(e)}")
+        print(f"❌ Error type: {type(e).__name__}")
         import traceback
         traceback.print_exc()
+
+        # Try to create an error report file
+        error_file = local_output_dir / f"error_report_{timestamp}.md"
+        with open(error_file, 'w', encoding='utf-8') as f:
+            f.write(f"# Test Error Report\n\n")
+            f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"**Error:** {str(e)}\n")
+            f.write(f"**Error Type:** {type(e).__name__}\n\n")
+            f.write(f"## Traceback\n\n```\n")
+            f.write(f"{traceback.format_exc()}")
+            f.write(f"\n```\n")
+        print(f"❌ Error report saved to: {error_file}")
         return False
 
 if __name__ == "__main__":
