@@ -52,8 +52,10 @@ async def test_real_questions():
         tournaments_to_try = [
             32813,  # AI Competition (actual ID)
             "minibench",  # MiniBench (actual ID)
-            "brightline-watch",  # Brightline Watch tournament
-            "brightlinewatch",  # Alternative Brightline Watch name
+            "brightlinewatch",  # Brightline Watch (from URL /c/brightlinewatch/)
+            "brightline-watch",  # Alternative format
+            "brightline_watch",  # Alternative format
+            "brightline",  # Alternative format
             None,  # Try general questions
         ]
 
@@ -68,7 +70,13 @@ async def test_real_questions():
                         ApiFilter(allowed_statuses=["open"])
                     )
                 except Exception as e:
-                    print(f"❌ Failed to get general questions: {str(e)}")
+                    error_str = str(e)
+                    print(f"❌ Failed to get general questions: {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
+                    if 'HTTPError' in error_str and 'Response reason:' in error_str:
+                        import re
+                        http_match = re.search(r'Reason: (\w+)', error_str)
+                        if http_match:
+                            print(f"   HTTP Error: {http_match.group(1)}")
                     continue
             else:
                 print(f"🔍 Checking tournament: {tournament}")
@@ -81,7 +89,14 @@ async def test_real_questions():
                         )
                     )
                 except Exception as e:
-                    print(f"❌ Failed to get questions for '{tournament}': {str(e)}")
+                    error_str = str(e)
+                    print(f"❌ Failed to get questions for '{tournament}': {error_str[:100]}{'...' if len(error_str) > 100 else ''}")
+                    if 'HTTPError' in error_str and 'Response reason:' in error_str:
+                        # Extract more detailed HTTP error info
+                        import re
+                        http_match = re.search(r'Reason: (\w+)', error_str)
+                        if http_match:
+                            print(f"   HTTP Error: {http_match.group(1)}")
                     continue
 
             print(f"✅ Found {len(questions)} open questions for '{tournament if tournament else 'general'}'")
