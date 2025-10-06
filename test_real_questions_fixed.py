@@ -51,23 +51,52 @@ async def test_real_questions():
         # Try specific known Brightline Watch question first to find tournament ID
         print(f"🔍 Testing known Brightline Watch question ID 31315...")
         try:
-            from forecasting_tools import MetaculusApi
-            specific_question = await MetaculusApi.get_question_by_id(31315)
-            if specific_question:
-                print(f"✅ Found question: {specific_question.question_text[:80]}...")
-                if hasattr(specific_question, 'tournament') and specific_question.tournament:
-                    print(f"🎯 TOURNAMENT ID FOUND: {specific_question.tournament}")
-                    real_questions = [specific_question]
-                    tournament_used = specific_question.tournament
-                elif hasattr(specific_question, 'tournaments') and specific_question.tournaments:
-                    print(f"🎯 TOURNAMENTS FOUND: {specific_question.tournaments}")
-                    tournament_id = specific_question.tournaments[0] if specific_question.tournaments else None
-                    real_questions = [specific_question]
-                    tournament_used = tournament_id
-                else:
-                    print("⚠️  No tournament info found on specific question")
+            # Try to get the specific question to understand its structure
+            all_questions = await MetaculusApi.get_questions_matching_filter(
+                ApiFilter(allowed_statuses=["open"], number_of_questions=100)
+            )
+
+            brightline_questions = []
+            for q in all_questions:
+                if hasattr(q, 'id') and q.id == 31315:
+                    print(f"✅ Found question 31315: {q.question_text[:80]}...")
+                    print(f"   Type: {type(q)}")
+                    print(f"   Attributes: {[attr for attr in dir(q) if not attr.startswith('_')]}")
+
+                    # Check tournament info
+                    if hasattr(q, 'tournament'):
+                        print(f"🎯 TOURNAMENT ID FOUND: {q.tournament}")
+                        real_questions = [q]
+                        tournament_used = q.tournament
+                    elif hasattr(q, 'tournaments'):
+                        print(f"🎯 TOURNAMENTS FOUND: {q.tournaments}")
+                        tournament_id = q.tournaments[0] if q.tournaments else None
+                        real_questions = [q]
+                        tournament_used = tournament_id
+                    else:
+                        print("⚠️  No tournament info found on specific question")
+                        # Still add it to see if we can process it
+                        brightline_questions.append(q)
+                    break
+
+                # Also look for other Brightline questions
+                if hasattr(q, 'page_url') and 'brightline' in str(q.page_url).lower():
+                    brightline_questions.append(q)
+                    print(f"🎯 Found Brightline question: {q.question_text[:80]}...")
+                    if hasattr(q, 'tournament'):
+                        print(f"   Tournament: {q.tournament}")
+                    elif hasattr(q, 'tournaments'):
+                        print(f"   Tournaments: {q.tournaments}")
+
+            if not real_questions and brightline_questions:
+                real_questions = brightline_questions
+                tournament_used = "found_by_url"
+                print(f"✅ Using {len(brightline_questions)} Brightline questions found by URL search")
+
         except Exception as e:
-            print(f"❌ Could not fetch specific question: {str(e)}")
+            print(f"❌ Could not search for specific question: {str(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
 
         # If we haven't found questions yet, try tournaments
         if not real_questions:

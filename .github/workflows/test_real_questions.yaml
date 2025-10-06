@@ -31,6 +31,15 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --no-root
 
+      - name: Diagnose Brightline Watch tournament
+        run: |
+          echo "=== Finding Brightline Watch Tournament ID ==="
+          echo "This will:"
+          echo "1. Find the actual tournament ID for Brightline Watch questions"
+          echo "2. Examine question structure and attributes"
+          echo "3. Save tournament information for debugging"
+          poetry run python find_brightline_tournament.py
+
       - name: Test multiforecaster on real questions
         run: |
           echo "=== Testing Multiforecaster on Real Metaculus Questions ==="
