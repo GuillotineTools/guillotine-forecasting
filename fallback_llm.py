@@ -102,12 +102,23 @@ class FallbackLLM:
                 )
 
                 # Attempt to invoke the model
+                logger.info(f"Making API call to model: {model_name}")
+                main_logger.info(f"=== MAKING API CALL TO {model_name} ===")
+                main_logger.info(f"API Key: {'***' + api_key[-4:] if api_key else 'None'}")
+                main_logger.info(f"Temperature: {self.temperature}")
+                main_logger.info(f"Timeout: {self.timeout}")
+                main_logger.info(f"Prompt length: {len(prompt)} characters")
+                main_logger.info(f"Prompt preview:\n{prompt[:200]}{'...' if len(prompt) > 200 else ''}")
+                main_logger.info("=== END API CALL DETAILS ===\n")
+
                 response = await llm.invoke(prompt)
 
                 # Success! Log and return
                 logger.info(f"Model {model_name} succeeded")
                 main_logger.info(f"=== SUCCESSFUL RESPONSE FROM {model_name} ===")
-                main_logger.info(f"Raw response:\n{response}")
+                main_logger.info(f"Response length: {len(response)} characters")
+                main_logger.info(f"Response preview:\n{response[:300]}{'...' if len(response) > 300 else ''}")
+                main_logger.info(f"Full response:\n{response}")
                 main_logger.info("=== END RESPONSE ===\n")
                 return response
 

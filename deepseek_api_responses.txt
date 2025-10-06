@@ -1,0 +1,33 @@
+# DeepSeek Model API Responses
+# Generated on 2025-10-05 12:55:08.113861
+
+## openrouter/deepseek/deepseek-chat
+
+### Simple Math Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: '4'
+
+### Research Question Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: 'As of October 2023, the oldest verified human in recorded history is **Jeanne Calment**, who lived to be **122 years and 164 days old** (1875–1997). Since her death, no one has surpassed this age, though several individuals have come close, such as **Kane Tanaka**, who lived to **119 years and 107 days** (1903–2022).\n\n### Current Trends and Analysis:\n1. **Life Expectancy Growth**: Global life expectancy has increased significantly over the past century due to advancements in medicine, nutrition, and public health. However, the rate of increase in maximum lifespan has slowed, suggesting a potential biological limit.\n   \n2. **Supercentenarians**: The number of people living beyond 110 (supercentenarians) has grown, but the age of the oldest individuals has not increased proportionally. This suggests that while more people are reaching extreme old age, breaking the 125-year barrier remains rare.\n\n3. **Biological Limits**: Research indicates that human cells have a finite capacity for division (the Hayflick limit) and that aging is driven by accumulated cellular damage. While interventions like caloric restriction, genetic engineering, and advanced medical treatments may extend lifespan, overcoming these biological barriers is uncertain.\n\n4. **Technological and Medical Advances**: Breakthroughs in anti-aging therapies, such as senolytics (drugs that target aging cells) and regenerative medicine, could potentially extend human lifespan. However, these technologies are still in experimental stages and their long-term impact is unknown.\n\n### Projection to 2100:\nPredicting whether the oldest human will exceed 125 years by 2100 involves significant uncertainty. While it is possible that medical and technological advancements could push the boundaries of human longevity, current trends suggest that surpassing 125 years would require overcoming substantial biological and environmental challenges.\n\n### Conclusion:\nBased on current records and trends, it is uncertain whether the oldest human will exceed 125 years by 2100. While advancements in science and medicine may increase the likelihood, the biological limits of aging remain a significant barrier. Continued research and innovation will be key to determining whether this milestone can be achieved.'
+
+### Forecast Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: '10'
+
+
+## openrouter/deepseek/deepseek-chat-v3
+
+### Simple Math Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: '4'
+
+### Research Question Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: 'As of October 2023, the oldest verified human in recorded history is **Jeanne Calment**, who lived to be **122 years and 164 days old** (1875–1997). Since her death, no one has surpassed this age, though a few individuals have come close, such as **Kane Tanaka**, who lived to **119 years and 107 days** (1903–2022).\n\n### Current Trends and Analysis:\n1. **Life Expectancy Increase**: Global life expectancy has been steadily increasing due to advancements in medicine, nutrition, and healthcare. However, the increase in **maximum lifespan** (the age of the oldest individuals) has been much slower.\n   \n2. **Centenarian Growth**: The number of people living past 100 has grown significantly, but the number of supercentenarians (those over 110) remains very small. This suggests there may be a natural limit to human lifespan.\n\n3. **Biological Limits**: Research into aging suggests that human cells have a finite capacity for repair and regeneration. While genetic, lifestyle, and medical interventions (e.g., senolytics, gene editing) may extend lifespan, it is unclear whether they can push the maximum age beyond 125.\n\n4. **Historical Data**: Over the past century, the maximum recorded human age has increased only marginally, from around 110 to 122. This slow progression indicates that reaching 125 or beyond is not guaranteed by 2100.\n\n### Projections for 2100:\n- **Optimistic View**: If breakthroughs in anti-aging technologies (e.g., CRISPR, regenerative medicine) occur, it is possible that the maximum human lifespan could exceed 125 by 2100.\n- **Conservative View**: Without significant advancements, the maximum lifespan may remain close to the current record, with only incremental increases.\n\n### Conclusion:\nWhile it is possible that the oldest human in 2100 could exceed 125 years, this would require substantial scientific and medical breakthroughs. Based on current trends and biological constraints, it is more likely that the maximum lifespan will remain near or slightly above the current record of 122 years.'
+
+### Forecast Test
+Prompt: Based on current longevity records and medical advancements, what is the probability (0-100%) that someone will live to be 130 years old by 2100? Just give the number.
+Response: '5'
+
+

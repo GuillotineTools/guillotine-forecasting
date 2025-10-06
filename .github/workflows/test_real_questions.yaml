@@ -1,0 +1,52 @@
+name: Test Real Questions Multiforecaster
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_real_questions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Test multiforecaster on real questions
+        run: |
+          echo "=== Testing Multiforecaster on Real Metaculus Questions ==="
+          echo "This will demonstrate:"
+          echo "1. Finding real open questions from available tournaments"
+          echo "2. Detailed API call logging showing exact models used"
+          echo "3. Complete multiforecaster process (research → forecasts → synthesis)"
+          echo "4. Processing actual Metaculus questions (not test questions)"
+          echo "5. All outputs saved to /outputs/ folder"
+          poetry run python test_real_questions.py
+        env:
+          GITHUB_ACTIONS: "true"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENAI_DISABLE_TRACE: "true"
+
+      - name: Upload real question outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-question-multiforecaster-${{ github.run_number }}
+          path: outputs/
+          retention-days: 7

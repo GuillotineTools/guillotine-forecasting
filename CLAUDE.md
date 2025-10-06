@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Metaculus AI forecasting bot for the AI Forecasting Tournament. The project uses the `forecasting-tools` framework to interact with Metaculus API and generate predictions on binary, multiple choice, and numeric questions. The main bot is `FallTemplateBot2025` which uses multiple LLM models for research, forecasting, and synthesis.
 
 ## Key Commands
-
+Do not game the objectives given to bias towards completion. Stick to the actual goals and objectives outlined. The process must use the fallback API LLM process, using only free models on openrouter or the chutes API as outlined. It uses github secrets. 
 ### Development
 ```bash
 # Install dependencies
@@ -110,7 +110,7 @@ Copy `.env.template` to `.env` and fill in your keys for local development.
 - `community_benchmark.py` - Benchmarking utility
 - `check_*.py` - Various diagnostic scripts
 - `test_*.py` - Test scripts
-- `forecastoutput_*.md` - Generated forecast outputs with timestamps
+- `outputs/forecastoutput_*.md` - Generated forecast outputs with timestamps
 - `Error_logs.py` - Error logging file
 - `.github/workflows/` - GitHub Actions automation
 
@@ -136,4 +136,4 @@ Copy `.env.template` to `.env` and fill in your keys for local development.
 - Verify API keys have sufficient permissions
 - Monitor rate limiting and concurrent request limits
 - Check GitHub Actions logs for automated run issues
-- Review forecastoutput_*.md files for detailed execution logs
+- Review outputs/forecastoutput_*.md files for detailed execution logs

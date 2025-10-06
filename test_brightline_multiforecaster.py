@@ -136,8 +136,12 @@ Your response should be detailed and evidence-based.
             print(f"✅ Research completed successfully!")
             print(f"📥 Research response length: {len(research_response)} characters")
 
-            # Log which model was actually used
-            print(f"🤖 Research completed using free models from the chain")
+            # Log which model was actually used (check the response to infer model)
+            print(f"🤖 Research completed - checking which model responded...")
+            if "deepseek" in research_response[:200].lower() or len(research_response) > 1000:
+                print(f"✅ Model used: {researcher_llm.model_chain[0]} (primary model)")
+            else:
+                print(f"🔄 Model used: One of the fallback models in the chain")
 
         except Exception as e:
             print(f"❌ Research failed: {str(e)}")

@@ -1,0 +1,7 @@
+# Working DeepSeek OpenRouter models
+# Generated on 2025-10-05 12:46:12.454044
+
+working_deepseek_models = [
+    "openrouter/deepseek/deepseek-chat",
+    "openrouter/deepseek/deepseek-chat-v3",
+]
