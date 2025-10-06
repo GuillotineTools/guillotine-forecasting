@@ -1,0 +1,94 @@
+name: Save Diagnosis Results
+
+on:
+  workflow_dispatch:
+
+jobs:
+  save_diagnosis_job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install forecasting-tools python-dotenv
+
+      - name: Run and Save Diagnosis
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          python3 << 'EOF'
+          import os
+          import asyncio
+          os.environ['GITHUB_ACTIONS'] = 'true'
+
+          async def save_diagnosis():
+              from forecasting_tools import MetaculusApi, ApiFilter
+              from datetime import datetime
+
+              print("🔍 SAVING DIAGNOSIS RESULTS")
+              print("=" * 40)
+
+              results = []
+
+              # Test 1: Check specific POTUS question
+              try:
+                  q = await MetaculusApi.get_question_by_post_id(39988)
+                  results.append(f"✅ Question 39988: {q.question_text[:80]}...")
+                  results.append(f"   Status: {getattr(q, 'status', 'Unknown')}")
+                  results.append(f"   URL: {q.page_url}")
+              except Exception as e:
+                  results.append(f"❌ Question 39988 failed: {e}")
+
+              # Test 2: Search for POTUS-related terms
+              try:
+                  api_filter = ApiFilter(statuses=["open"], number_of_questions=100)
+                  questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+                  results.append(f"✅ Found {len(questions)} open questions")
+
+                  potus_found = []
+                  for q in questions:
+                      if any(term in q.question_text.lower() for term in ['potus', 'president', 'trump', 'biden', 'bondi', 'attorney']):
+                          potus_found.append(q)
+
+                  if potus_found:
+                      results.append(f"✅ FOUND {len(potus_found)} POTUS-RELATED QUESTIONS:")
+                      for q in potus_found[:5]:
+                          results.append(f"   - {q.question_text[:80]}...")
+                          results.append(f"     URL: {q.page_url}")
+                  else:
+                      results.append("❌ NO POTUS QUESTIONS FOUND IN 100 OPEN QUESTIONS")
+
+              except Exception as e:
+                  results.append(f"❌ Search failed: {e}")
+
+              # Save results to file
+              timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+              filename = f"diagnosis_results_{timestamp}.md"
+
+              with open(filename, 'w') as f:
+                  f.write(f"# Question Diagnosis Results\\n\\n")
+                  f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n\\n")
+                  for result in results:
+                      f.write(f"{result}\\n")
+
+              print(f"✅ Results saved to {filename}")
+
+          asyncio.run(save_diagnosis())
+          EOF
+
+          git add diagnosis_results_*.md
+          git commit -m "Auto-commit: diagnosis results" || echo "No changes to commit"
+          git push || echo "Push failed"
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
