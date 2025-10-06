@@ -243,11 +243,11 @@ def create_default_fallback_llm(
     """
     Create a FallbackLLM with the default model chain for forecasting.
 
-    Primary: x-ai/grok-4-fast:free
-    Fallbacks: deepseek/deepseek-chat-v3.1:free, z-ai/glm-4.5-air:free,
-               deepseek/deepseek-r1-0528:free, deepseek/deepseek-chat-v3-0324:free,
-               deepseek/deepseek-r1:free, qwen/qwen3-235b-a22b:free,
-               google/gemini-2.0-flash-exp:free
+    Primary: openrouter/deepseek/deepseek-chat
+    Fallbacks: openrouter/deepseek/deepseek-chat-v3, z-ai/glm-4.5-air:free,
+               deepseek/deepseek-r1t2-chimera:free, deepseek-r1t-chimera:free,
+               microsoft/mai-ds-r1:free, qwen/qwen3-235b-a22b:free,
+               google/gemini-2.0-flash-exp:free, meta-llama/llama-3.3-70b-instruct:free
 
     Args:
         api_key: OpenRouter API key (optional, uses env var if not provided)

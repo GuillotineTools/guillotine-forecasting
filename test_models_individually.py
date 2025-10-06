@@ -16,7 +16,7 @@ os.environ['OPENAI_DISABLE_TRACE'] = 'true'
 TEST_MODELS = [
     "openrouter/deepseek/deepseek-r1:free",
     "openrouter/openai/gpt-4o-mini",
-    "openrouter/x-ai/grok-4-fast:free",
+    "openrouter/deepseek/deepseek-chat",
     "openrouter/meta-llama/llama-3.1-8b-instruct:free",
     "openrouter/microsoft/phi-3-medium-128k-instruct:free",
     "openrouter/mistralai/mistral-7b-instruct:free",

@@ -190,16 +190,16 @@ class FallTemplateBot2025(ForecastBot):
     # Define model names for logging - USING ONLY FREE MODELS
     # These match the primary models in our FallbackLLM chains
     forecaster_models = {
-        "forecaster1": "openrouter/x-ai/grok-4-fast:free",
-        "forecaster2": "openrouter/x-ai/grok-4-fast:free",
-        "forecaster3": "openrouter/x-ai/grok-4-fast:free",
-        "forecaster4": "openrouter/x-ai/grok-4-fast:free",
-        "forecaster5": "openrouter/x-ai/grok-4-fast:free",
-        "forecaster6": "openrouter/x-ai/grok-4-fast:free",
-        "synthesizer": "openrouter/x-ai/grok-4-fast:free",
-        "parser": "openrouter/x-ai/grok-4-fast:free",
-        "researcher": "openrouter/x-ai/grok-4-fast:free",
-        "summarizer": "openrouter/x-ai/grok-4-fast:free",
+        "forecaster1": "openrouter/deepseek/deepseek-chat",
+        "forecaster2": "openrouter/deepseek/deepseek-chat-v3",
+        "forecaster3": "openrouter/tngtech/deepseek-r1t2-chimera:free",
+        "forecaster4": "openrouter/z-ai/glm-4.5-air:free",
+        "forecaster5": "openrouter/tngtech/deepseek-r1t-chimera:free",
+        "forecaster6": "openrouter/microsoft/mai-ds-r1:free",
+        "synthesizer": "openrouter/deepseek/deepseek-chat-v3",
+        "parser": "openrouter/deepseek/deepseek-chat",
+        "researcher": "openrouter/deepseek/deepseek-chat",
+        "summarizer": "openrouter/deepseek/deepseek-chat",
     }
     
     _max_concurrent_questions = (

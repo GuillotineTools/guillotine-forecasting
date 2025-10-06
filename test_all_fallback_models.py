@@ -34,7 +34,7 @@ BACKUP_FREE_MODELS = [
     "openrouter/mistralai/mistral-7b-instruct:free",
     "openrouter/mistralai/mistral-nemo:free",
     "openrouter/google/gemma-2-9b-it:free",
-    "openrouter/x-ai/grok-4-fast:free",
+    "openrouter/deepseek/deepseek-chat",
     "openrouter/openai/gpt-4o-mini",
     "openrouter/perplexity/sonar"
 ]
