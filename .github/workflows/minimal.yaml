@@ -1,0 +1,13 @@
+name: Minimal
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Workflow ran at $(date)" > result.txt
+      - uses: actions/upload-artifact@v3
+        with:
+          name: result
+          path: result.txt
