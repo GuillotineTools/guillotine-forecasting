@@ -1,0 +1,36 @@
+name: Test OpenRouter Authentication
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_openrouter_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing OpenRouter test dependencies ==="
+          pip install litellm asyncio
+
+      - name: Test OpenRouter Authentication
+        run: |
+          echo "=== Testing OpenRouter Authentication at $(date) ==="
+
+          python3 test_openrouter_direct.py
+
+          echo "=== OpenRouter Authentication test completed at $(date) ==="
+
+    env:
+      GITHUB_ACTIONS: "true"
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""
