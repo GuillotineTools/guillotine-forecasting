@@ -1712,7 +1712,54 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
             )
             
-            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports
+            # Get POTUS Predictions questions
+            logger.info("Getting POTUS Predictions tournament questions")
+            potus_filter = ApiFilter(
+                allowed_statuses=["open"],
+                allowed_tournaments=["POTUS-predictions"]
+            )
+            potus_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(potus_filter)
+            )
+            
+            # For debugging, also get questions with other statuses to see what's available
+            all_potus_filter = ApiFilter(
+                allowed_tournaments=["POTUS-predictions"]
+            )
+            all_potus_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(all_potus_filter)
+            )
+            logger.info(f"Found {len(all_potus_questions)} total questions for POTUS Predictions (including closed).")
+            
+            logger.info(f"Found {len(potus_questions)} OPEN questions for POTUS Predictions.")
+            for q in potus_questions:
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
+
+            # Send ntfy alerts for new POTUS questions
+            for q in potus_questions:
+                try:
+                    # Determine question type
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+                    
+                    send_new_question_alert(
+                        question_title=q.question_text[:100] + "..." if len(q.question_text) > 100 else q.question_text,
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="POTUS Predictions"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for POTUS question {q.page_url}: {e}")
+
+            potus_reports = asyncio.run(
+                template_bot.forecast_questions(potus_questions, return_exceptions=True)
+            )
+            
+            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports
         elif run_mode == "metaculus_cup":
             # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
             # The permanent ID for the Metaculus Cup is now 32828
@@ -1753,7 +1800,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 
     # Log final summary
         if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}")
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}")
         else:
             logger.info(f"All processing completed for {run_mode} mode")
 
