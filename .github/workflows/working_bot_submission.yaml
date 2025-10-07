@@ -1,0 +1,198 @@
+name: Working Bot Submission
+
+on:
+  workflow_dispatch:
+
+jobs:
+  working_bot_submission_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing working bot dependencies ==="
+          pip install forecasting-tools python-dotenv asyncio
+          pip install asknews openai exa perplexity
+
+      - name: Working Bot Submission
+        run: |
+          echo "=== Starting Working Bot Submission at $(date) ==="
+
+          python3 << 'EOF'
+          import os
+          import asyncio
+          from datetime import datetime
+
+          os.environ['GITHUB_ACTIONS'] = 'true'
+
+          async def working_bot_submission():
+              print("🤖 WORKING BOT SUBMISSION")
+              print("=" * 50)
+
+              # Check environment
+              api_key = os.getenv('OPENROUTER_API_KEY')
+              metaculus_token = os.getenv('METACULUS_TOKEN')
+
+              print(f"OpenRouter Key: {'✅' if api_key else '❌'}")
+              print(f"Metaculus Token: {'✅' if metaculus_token else '❌'}")
+
+              if not api_key or not metaculus_token:
+                  print("❌ Missing API keys")
+                  return False
+
+              try:
+                  # Use the main bot with proper settings
+                  print("\n🔧 IMPORTING MAIN BOT")
+                  from main import FallTemplateBot2025
+                  from forecasting_tools import ApiFilter
+
+                  print("✅ Main bot imported successfully")
+
+                  # Initialize bot
+                  print("\n🚀 INITIALIZING BOT")
+                  bot = FallTemplateBot2025()
+                  print("✅ Bot initialized successfully")
+
+                  # Get POTUS questions using working method
+                  print("\n📊 GETTING POTUS QUESTIONS")
+                  try:
+                      # Use the working tournament method
+                      questions = bot.get_tournament_questions("POTUS-predictions")
+                      print(f"✅ Found {len(questions)} POTUS questions")
+
+                      # Look for Bondi question
+                      bondi_question = None
+                      for q in questions:
+                          q_text = getattr(q, 'question_text', '').lower()
+                          if 'bondi' in q_text or 'attorney general' in q_text:
+                              bondi_question = q
+                              print(f"✅ Found Bondi question: {q.question_text[:80]}...")
+                              break
+
+                      if not bondi_question:
+                          print("❌ Bondi question not found")
+                          return False
+
+                  except Exception as e:
+                      print(f"❌ Failed to get POTUS questions: {e}")
+                      return False
+
+                  # Test the question attributes
+                  print("\n🔍 TESTING QUESTION ATTRIBUTES")
+                  print(f"Question type: {type(bondi_question).__name__}")
+                  print(f"Available attributes: {[attr for attr in dir(bondi_question) if not attr.startswith('_')][:10]}...")
+
+                  # Try to get question ID
+                  question_id = None
+                  for attr in ['id', 'question_id', 'num', 'number']:
+                      if hasattr(bondi_question, attr):
+                          question_id = getattr(bondi_question, attr)
+                          print(f"✅ Found question ID via '{attr}': {question_id}")
+                          break
+
+                  if not question_id:
+                      print("❌ Could not find question ID")
+                      return False
+
+                  # Run bot forecasting on just this one question
+                  print(f"\n🔮 RUNNING BOT FORECASTING")
+                  print(f"Question ID: {question_id}")
+                  print(f"Question text: {bondi_question.question_text[:80]}...")
+
+                  try:
+                      # Create a filter for just this question
+                      api_filter = ApiFilter(
+                          statuses=["open"],
+                          question_ids=[question_id] if isinstance(question_id, int) else None,
+                          number_of_questions=1
+                      )
+
+                      # Get questions matching filter
+                      questions_to_forecast = await bot.get_questions_matching_filter(api_filter)
+
+                      if not questions_to_forecast:
+                          print("❌ No questions to forecast")
+                          return False
+
+                      print(f"✅ Found {len(questions_to_forecast)} questions to forecast")
+
+                      # Run the bot's forecasting method with submission enabled
+                      print("\n🚀 RUNNING FORECAST WITH SUBMISSION")
+                      await bot.forecast_on_tournament(
+                          questions_to_forecast,
+                          publish_reports_to_metaculus=True
+                      )
+
+                      print("✅ Bot forecasting completed with submission enabled!")
+
+                      # Save results
+                      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                      with open(f"working_bot_submission_{timestamp}.md", "w") as f:
+                          f.write(f"""# Working Bot Submission Results
+
+**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Status:** ✅ SUBMITTED SUCCESSFULLY
+
+## Question
+**ID:** {question_id}
+**Text:** {bondi_question.question_text}
+**URL:** {bondi_question.page_url}
+
+## Bot Forecasting
+✅ Bot initialized successfully
+✅ Question found and processed
+✅ Forecast generated and submitted
+
+## Verification
+Check the forecast at: [{bondi_question.page_url}]({bondi_question.page_url})
+
+The forecast should appear in the prediction history on the question page.
+""")
+
+                      return True
+
+                  except Exception as e:
+                      print(f"❌ Bot forecasting failed: {e}")
+                      import traceback
+                      traceback.print_exc()
+                      return False
+
+              except Exception as e:
+                  print(f"❌ Working bot submission failed: {e}")
+                  import traceback
+                  traceback.print_exc()
+                  return False
+
+          # Run working bot submission
+          success = asyncio.run(working_bot_submission())
+
+          if success:
+              print("\n🎉 WORKING BOT SUBMISSION SUCCESSFUL!")
+              print("✅ Forecast submitted using main bot framework")
+          else:
+              print("\n❌ WORKING BOT SUBMISSION FAILED!")
+          EOF
+
+          echo "=== Working Bot Submission completed at $(date) ==="
+
+      - name: Upload Working Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: working-bot-submission-results-${{ github.run_number }}
+          path: working_bot_submission_*.md
+          retention-days: 7
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""

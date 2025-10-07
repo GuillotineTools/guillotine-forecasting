@@ -1,0 +1,36 @@
+name: Test BinaryQuestion Attributes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_attributes_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing dependencies ==="
+          pip install forecasting-tools python-dotenv asyncio
+
+      - name: Test BinaryQuestion Attributes
+        run: |
+          echo "=== Testing BinaryQuestion Attributes at $(date) ==="
+
+          python3 test_binary_question_attributes.py
+
+          echo "=== BinaryQuestion Attributes test completed at $(date) ==="
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""
