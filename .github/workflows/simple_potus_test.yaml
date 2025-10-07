@@ -2,6 +2,8 @@ name: Simple POTUS Test
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
 
 jobs:
   simple_potus_test_job:
