@@ -1,0 +1,78 @@
+name: Simple POTUS Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  simple_potus_test_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install forecasting-tools python-dotenv
+
+      - name: Simple POTUS Test
+        run: |
+          echo "=== Simple POTUS Test at $(date) ==="
+
+          python3 -c "
+import os
+import asyncio
+from datetime import datetime
+
+os.environ['GITHUB_ACTIONS'] = 'true'
+
+async def simple_test():
+    from forecasting_tools import MetaculusApi, ApiFilter
+
+    print('🔍 SIMPLE POTUS TEST')
+    print('=' * 40)
+
+    # Test 1: Try direct tournament access
+    print('\\nTest 1: POTUS-predictions tournament')
+    try:
+        questions = MetaculusApi.get_all_open_questions_from_tournament('POTUS-predictions')
+        print(f'✅ SUCCESS: {len(questions)} questions')
+        for i, q in enumerate(questions[:3]):
+            print(f'  {i+1}. {q.question_text[:60]}...')
+    except Exception as e:
+        print(f'❌ FAILED: {e}')
+
+    # Test 2: Try Bondi question directly
+    print('\\nTest 2: Bondi question 39988')
+    try:
+        q = await MetaculusApi.get_question_by_url('https://www.metaculus.com/questions/39988/')
+        print(f'✅ SUCCESS: {q.question_text[:60]}...')
+        print(f'   Status: {getattr(q, \"status\", \"Unknown\")}')
+    except Exception as e:
+        print(f'❌ FAILED: {e}')
+
+    # Test 3: Search for Bondi in open questions
+    print('\\nTest 3: Search for Bondi questions')
+    try:
+        api_filter = ApiFilter(statuses=['open'], number_of_questions=50)
+        questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+        print(f'✅ Got {len(questions)} questions')
+
+        bondi_found = False
+        for q in questions:
+            if 'bondi' in q.question_text.lower():
+                print(f'✅ FOUND BONDI: {q.question_text[:60]}...')
+                bondi_found = True
+                break
+
+        if not bondi_found:
+            print('❌ No Bondi questions found')
+    except Exception as e:
+        print(f'❌ FAILED: {e}')
+
+asyncio.run(simple_test())
+print('=== Simple POTUS Test completed ===')
+"
