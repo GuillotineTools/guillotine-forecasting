@@ -1,0 +1,44 @@
+name: Final Submission Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  final_submission_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing final test dependencies ==="
+          pip install requests python-dotenv asyncio
+
+      - name: Final Submission Test
+        run: |
+          echo "=== Final Submission Test at $(date) ==="
+
+          python3 test_actual_submission.py
+
+          echo "=== Final Submission Test completed at $(date) ==="
+
+      - name: Upload Final Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-submission-results-${{ github.run_number }}
+          path: actual_submission_*.md
+          retention-days: 7
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""
