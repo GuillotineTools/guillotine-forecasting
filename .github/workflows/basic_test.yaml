@@ -14,7 +14,7 @@ jobs:
           echo "Basic test at $(date)" > basic_test_output.txt
           echo "Test successful" >> basic_test_output.txt
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: basic-test-results
           path: basic_test_output.txt

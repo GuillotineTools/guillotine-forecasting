@@ -53,7 +53,7 @@ with open('api_debug_report.txt', 'w') as f:
     f.write('Metaculus: Tested above\\n')
 "
       - name: Upload Debug Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: api-debug-results
           path: api_debug_report.txt

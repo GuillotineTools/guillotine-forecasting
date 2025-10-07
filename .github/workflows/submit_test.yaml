@@ -65,7 +65,7 @@ except Exception as e:
         f.write(f'Error: {e}\n')
 "
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: submission-test-results
           path: submission_test_result.txt

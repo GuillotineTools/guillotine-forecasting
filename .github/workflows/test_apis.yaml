@@ -18,7 +18,7 @@ jobs:
       - name: Test APIs
         run: python3 test_apis_locally.py
       - name: Upload Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: api-test-results
           path: api_test_results_*.txt
