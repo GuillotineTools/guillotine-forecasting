@@ -1,0 +1,24 @@
+name: Test APIs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_apis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: pip install requests asyncio
+      - name: Test APIs
+        run: python3 test_apis_locally.py
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-test-results
+          path: api_test_results_*.txt
