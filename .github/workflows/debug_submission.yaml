@@ -1,0 +1,39 @@
+name: Debug POTUS Submission
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - debug_submission.py
+
+jobs:
+  debug_submission_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing debug dependencies ==="
+          pip install forecasting-tools python-dotenv asyncio
+
+      - name: Debug POTUS Submission
+        run: |
+          echo "=== Starting POTUS Submission Debug at $(date) ==="
+
+          python3 debug_submission.py
+
+          echo "=== POTUS Submission Debug completed at $(date) ==="
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""
