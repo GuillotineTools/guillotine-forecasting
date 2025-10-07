@@ -1,0 +1,53 @@
+name: Simple Debug
+
+on:
+  workflow_dispatch:
+
+jobs:
+  simple_debug_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Simple Environment Debug
+        run: |
+          echo "=== SIMPLE DEBUG at $(date) ==="
+          echo "Working directory: $(pwd)"
+          echo "Files in directory:"
+          ls -la
+          echo ""
+          echo "=== ENVIRONMENT CHECK ==="
+          echo "GITHUB_ACTIONS: $GITHUB_ACTIONS"
+          echo "METACULUS_TOKEN exists: ${METACULUS_TOKEN:+YES}"
+          echo "OPENROUTER_API_KEY exists: ${OPENROUTER_API_KEY:+YES}"
+          echo ""
+          echo "=== PYTHON TEST ==="
+          python3 -c "
+import os
+print('Python version check')
+print('GITHUB_ACTIONS:', os.environ.get('GITHUB_ACTIONS', 'NOT SET'))
+print('METACULUS_TOKEN:', 'SET' if os.environ.get('METACULUS_TOKEN') else 'NOT SET')
+print('OPENROUTER_API_KEY:', 'SET' if os.environ.get('OPENROUTER_API_KEY') else 'NOT SET')
+"
+
+          echo "=== FORECASTING TOOLS INSTALL TEST ==="
+          pip install forecasting-tools python-dotenv asyncio
+          python3 -c "
+try:
+    import forecasting_tools
+    print('✅ forecasting_tools imported successfully')
+    print('Version:', getattr(forecasting_tools, '__version__', 'unknown'))
+except Exception as e:
+    print('❌ forecasting_tools import failed:', e)
+"
+
+          echo "=== SIMPLE DEBUG COMPLETED ==="
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      OPENAI_DISABLE_TRACE: "true"
+      OPENAI_ORGANIZATION: ""
