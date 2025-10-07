@@ -1,0 +1,59 @@
+name: Debug APIs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug_apis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: pip install requests
+      - name: Debug APIs
+        run: |
+          python3 test_openrouter_simple.py
+
+          echo "--- TESTING METACULUS API ---"
+          python3 -c "
+import requests
+import os
+from datetime import datetime
+
+token = '${{ secrets.METACULUS_TOKEN }}'
+print(f'Metaculus token length: {len(token) if token else 0}')
+
+if token and len(token) > 10:
+    headers = {'Authorization': f'Token {token}', 'Content-Type': 'application/json'}
+    try:
+        response = requests.get('https://www.metaculus.com/api/posts/39988/', headers=headers)
+        print(f'Metaculus API status: {response.status_code}')
+        if response.status_code == 200:
+            data = response.json()
+            print(f'✅ Metaculus question: {data.get(\"title\", \"No title\")[:50]}...')
+        else:
+            print(f'❌ Metaculus API failed: {response.text}')
+    except Exception as e:
+        print(f'❌ Metaculus API error: {e}')
+else:
+    print('❌ No valid Metaculus token')
+"
+
+          echo "--- CREATING DEBUG REPORT ---"
+          python3 -c "
+from datetime import datetime
+with open('api_debug_report.txt', 'w') as f:
+    f.write(f'API Debug Report - {datetime.now()}\\n')
+    f.write('OpenRouter: Needs real API key\\n')
+    f.write('Metaculus: Tested above\\n')
+"
+      - name: Upload Debug Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-debug-results
+          path: api_debug_report.txt
