@@ -1759,7 +1759,54 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 template_bot.forecast_questions(potus_questions, return_exceptions=True)
             )
             
-            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports
+            # Get RAND Policy Challenge questions
+            logger.info("Getting RAND Policy Challenge tournament questions")
+            rand_filter = ApiFilter(
+                allowed_statuses=["open"],
+                allowed_tournaments=["rand"]
+            )
+            rand_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(rand_filter)
+            )
+            
+            # For debugging, also get questions with other statuses to see what's available
+            all_rand_filter = ApiFilter(
+                allowed_tournaments=["rand"]
+            )
+            all_rand_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(all_rand_filter)
+            )
+            logger.info(f"Found {len(all_rand_questions)} total questions for RAND Policy Challenge (including closed).")
+            
+            logger.info(f"Found {len(rand_questions)} OPEN questions for RAND Policy Challenge.")
+            for q in rand_questions:
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
+
+            # Send ntfy alerts for new RAND questions
+            for q in rand_questions:
+                try:
+                    # Determine question type
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+                    
+                    send_new_question_alert(
+                        question_title=q.question_text[:100] + "..." if len(q.question_text) > 100 else q.question_text,
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="RAND Policy Challenge"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for RAND question {q.page_url}: {e}")
+
+            rand_reports = asyncio.run(
+                template_bot.forecast_questions(rand_questions, return_exceptions=True)
+            )
+            
+            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
         elif run_mode == "metaculus_cup":
             # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
             # The permanent ID for the Metaculus Cup is now 32828
@@ -1800,7 +1847,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 
     # Log final summary
         if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}")
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}")
         else:
             logger.info(f"All processing completed for {run_mode} mode")
 
