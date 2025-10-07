@@ -1,0 +1,325 @@
+name: Comprehensive Metaculus API Diagnostic
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *" # every 30 minutes
+
+jobs:
+  diagnostic_job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          echo "=== Installing comprehensive diagnostic tools ==="
+          pip install forecasting-tools python-dotenv requests
+
+      - name: Run Comprehensive Diagnostic
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          python3 << 'EOF'
+          import os
+          import asyncio
+          import json
+          import requests
+          from datetime import datetime
+          os.environ['GITHUB_ACTIONS'] = 'true'
+
+          print("🔍 COMPREHENSIVE METACULUS API DIAGNOSTIC")
+          print("=" * 60)
+
+          # Get API token
+          metaculus_token = os.getenv('METACULUS_TOKEN')
+          if not metaculus_token:
+              print("❌ METACULUS_TOKEN not found")
+              exit(1)
+
+          print(f"✅ METACULUS_TOKEN found (length: {len(metaculus_token)})")
+
+          results = []
+          results.append("# Comprehensive Metaculus API Diagnostic Results")
+          results.append("")
+          results.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+          results.append("")
+          results.append("## Goal: Access POTUS Predictions tournament questions")
+          results.append("")
+
+          # Test 1: Direct HTTP API calls to understand tournament structure
+          results.append("## Test 1: Direct HTTP API Calls")
+          results.append("")
+
+          headers = {
+              'Authorization': f'Token {metaculus_token}',
+              'Content-Type': 'application/json'
+          }
+
+          # Try to get tournaments
+          try:
+              print("🔍 Testing direct API call to get tournaments...")
+              response = requests.get('https://www.metaculus.com/api/tournament/', headers=headers)
+
+              if response.status_code == 200:
+                  tournaments_data = response.json()
+                  results.append(f"✅ **Tournaments API SUCCESS** - Status: {response.status_code}")
+                  results.append(f"Found {len(tournaments_data.get('results', []))} tournaments")
+                  results.append("")
+
+                  # Look for POTUS-related tournaments
+                  potus_tournaments = []
+                  for tournament in tournaments_data.get('results', []):
+                      tournament_name = tournament.get('title', '').lower()
+                      tournament_slug = tournament.get('slug', '').lower()
+
+                      if 'potus' in tournament_name or 'potus' in tournament_slug:
+                          potus_tournaments.append(tournament)
+                          results.append(f"🎯 **POTUS TOURNAMENT FOUND:**")
+                          results.append(f"   Title: {tournament.get('title')}")
+                          results.append(f"   Slug: {tournament.get('slug')}")
+                          results.append(f"   ID: {tournament.get('id')}")
+                          results.append(f"   URL: {tournament.get('url')}")
+                          results.append("")
+
+                  if not potus_tournaments:
+                      results.append("❌ No POTUS tournaments found in API")
+                      results.append("First 5 tournaments:")
+                      for i, t in enumerate(tournaments_data.get('results', [])[:5]):
+                          results.append(f"   {i+1}. {t.get('title', 'No title')} (slug: {t.get('slug', 'no-slug')})")
+                  else:
+                      results.append(f"✅ Found {len(potus_tournaments)} POTUS-related tournaments")
+
+              else:
+                  results.append(f"❌ **Tournaments API FAILED** - Status: {response.status_code}")
+                  results.append(f"Response: {response.text[:200]}...")
+
+          except Exception as e:
+              results.append(f"❌ **Tournaments API Exception**: {e}")
+
+          results.append("")
+
+          # Test 2: Try to get questions from POTUS-predictions using different methods
+          results.append("## Test 2: POTUS-predictions Tournament Access")
+          results.append("")
+
+          # Method A: Using forecasting-tools
+          try:
+              print("🔍 Testing forecasting-tools tournament access...")
+              from forecasting_tools import MetaculusApi, ApiFilter
+
+              questions = MetaculusApi.get_all_open_questions_from_tournament("POTUS-predictions")
+              results.append(f"✅ **Forecasting-tools SUCCESS**: {len(questions)} questions")
+
+              if questions:
+                  results.append("First 3 questions:")
+                  for i, q in enumerate(questions[:3]):
+                      q_text = getattr(q, 'question_text', 'No text')
+                      q_url = getattr(q, 'page_url', 'No URL')
+                      results.append(f"   {i+1}. {q_text[:80]}...")
+                      results.append(f"      URL: {q_url}")
+
+                      # Check if this is the Bondi question
+                      if 'bondi' in q_text.lower() or 'attorney general' in q_text.lower():
+                          results.append("      🎯 **FOUND BONDI QUESTION!**")
+              else:
+                  results.append("❌ No questions returned")
+
+          except Exception as e:
+              results.append(f"❌ **Forecasting-tools FAILED**: {str(e)}")
+
+          results.append("")
+
+          # Method B: Direct API call to POTUS-predictions questions
+          try:
+              print("🔍 Testing direct API call to POTUS-predictions questions...")
+
+              # Try different API endpoints
+              endpoints = [
+                  f"https://www.metaculus.com/api/posts/?tournament=POTUS-predictions&status=open",
+                  f"https://www.metaculus.com/api/tournament/POTUS-predictions/questions/",
+                  f"https://www.metaculus.com/api/tournament/POTUS-predictions/"
+              ]
+
+              for endpoint in endpoints:
+                  try:
+                      response = requests.get(endpoint, headers=headers)
+                      results.append(f"**Endpoint:** {endpoint}")
+                      results.append(f"Status: {response.status_code}")
+
+                      if response.status_code == 200:
+                          data = response.json()
+                          if 'results' in data:
+                              results.append(f"✅ Found {len(data['results'])} questions")
+
+                              # Look for Bondi question
+                              for q in data['results'][:5]:
+                                  q_title = q.get('title', q.get('question_text', ''))
+                                  if 'bondi' in q_title.lower() or 'attorney general' in q_title.lower():
+                                      results.append(f"🎯 **FOUND BONDI:** {q_title[:80]}...")
+                                      results.append(f"   ID: {q.get('id')}")
+                                      break
+                          else:
+                              results.append(f"✅ Response received but no 'results' field")
+                              results.append(f"Response keys: {list(data.keys())}")
+                      else:
+                          results.append(f"❌ Failed with status {response.status_code}")
+                          results.append(f"Response: {response.text[:200]}...")
+
+                      results.append("")
+
+                  except Exception as e:
+                      results.append(f"❌ Endpoint failed: {e}")
+                      results.append("")
+
+          except Exception as e:
+              results.append(f"❌ **Direct API FAILED**: {e}")
+              results.append("")
+
+          # Test 3: Try to access the specific Bondi question (39988)
+          results.append("## Test 3: Specific Bondi Question Access (39988)")
+          results.append("")
+
+          # Method A: forecasting-tools by URL
+          try:
+              print("🔍 Testing Bondi question by URL...")
+              from forecasting_tools import MetaculusApi
+
+              question = await MetaculusApi.get_question_by_url("https://www.metaculus.com/questions/39988/")
+              results.append(f"✅ **Bondi URL Access SUCCESS**")
+              results.append(f"Question: {question.question_text[:100]}...")
+              results.append(f"Status: {getattr(question, 'status', 'Unknown')}")
+              results.append(f"Type: {type(question).__name__}")
+
+          except Exception as e:
+              results.append(f"❌ **Bondi URL Access FAILED**: {str(e)}")
+
+          # Method B: Direct API call to question
+          try:
+              print("🔍 Testing Bondi question by direct API...")
+              response = requests.get("https://www.metaculus.com/api/posts/39988/", headers=headers)
+
+              if response.status_code == 200:
+                  data = response.json()
+                  results.append(f"✅ **Bondi Direct API SUCCESS**")
+                  results.append(f"Title: {data.get('title', 'No title')[:100]}...")
+                  results.append(f"Status: {data.get('status', 'Unknown')}")
+                  results.append(f"Type: {data.get('type', 'Unknown')}")
+
+                  # Check tournament info
+                  if 'tournament' in data:
+                      results.append(f"Tournament: {data['tournament']}")
+                  if 'tournaments' in data and data['tournaments']:
+                      results.append(f"Tournaments: {data['tournaments']}")
+
+              else:
+                  results.append(f"❌ **Bondi Direct API FAILED** - Status: {response.status_code}")
+                  results.append(f"Response: {response.text[:200]}...")
+
+          except Exception as e:
+              results.append(f"❌ **Bondi Direct API Exception**: {e}")
+
+          results.append("")
+
+          # Test 4: Search for Bondi questions in all open questions
+          results.append("## Test 4: Search for Bondi Questions in All Open Questions")
+          results.append("")
+
+          try:
+              print("🔍 Searching for Bondi questions in all open questions...")
+              from forecasting_tools import ApiFilter
+
+              api_filter = ApiFilter(statuses=["open"], number_of_questions=200)
+              all_questions = await MetaculusApi.get_questions_matching_filter(api_filter)
+              results.append(f"✅ Retrieved {len(all_questions)} open questions")
+
+              bondi_questions = []
+              for q in all_questions:
+                  q_text = getattr(q, 'question_text', '').lower()
+                  if 'bondi' in q_text or 'attorney general' in q_text:
+                      bondi_questions.append(q)
+
+              if bondi_questions:
+                  results.append(f"✅ **Found {len(bondi_questions)} Bondi/Attorney General questions:**")
+                  for i, q in enumerate(bondi_questions):
+                      q_text = getattr(q, 'question_text', 'No text')
+                      q_url = getattr(q, 'page_url', 'No URL')
+                      results.append(f"   {i+1}. {q_text[:80]}...")
+                      results.append(f"      URL: {q_url}")
+              else:
+                  results.append("❌ No Bondi/Attorney General questions found in 200 open questions")
+                  results.append("Checking for other presidential questions...")
+
+                  # Look for other presidential content
+                  pres_questions = []
+                  for q in all_questions:
+                      q_text = getattr(q, 'question_text', '').lower()
+                      if any(term in q_text for term in ['president', 'trump', 'biden', 'white house']):
+                          pres_questions.append(q)
+
+                  if pres_questions:
+                      results.append(f"✅ Found {len(pres_questions)} presidential questions instead")
+                      for i, q in enumerate(pres_questions[:3]):
+                          q_text = getattr(q, 'question_text', 'No text')
+                          results.append(f"   {i+1}. {q_text[:80]}...")
+                  else:
+                      results.append("❌ No presidential questions found either")
+
+          except Exception as e:
+              results.append(f"❌ **Search FAILED**: {e}")
+
+          results.append("")
+          results.append("## Summary and Recommendations")
+          results.append("")
+
+          # Save results
+          timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+          filename = f"comprehensive_diagnostic_{timestamp}.md"
+
+          with open(filename, 'w') as f:
+              f.write('\n'.join(results))
+
+          print(f"✅ Comprehensive diagnostic saved to {filename}")
+
+          # Also save raw API responses for debugging
+          try:
+              raw_responses_file = f"raw_api_responses_{timestamp}.json"
+              raw_data = {
+                  'timestamp': datetime.now().isoformat(),
+                  'tournaments_response': None,
+                  'potus_questions_response': None,
+                  'bondi_question_response': None
+              }
+
+              # Get raw responses (simplified)
+              try:
+                  raw_data['tournaments_response'] = requests.get('https://www.metaculus.com/api/tournament/', headers=headers).text[:500]
+              except:
+                  pass
+
+              with open(raw_responses_file, 'w') as f:
+                  json.dump(raw_data, f, indent=2)
+
+              print(f"✅ Raw API responses saved to {raw_responses_file}")
+
+          except Exception as e:
+              print(f"⚠️ Could not save raw responses: {e}")
+
+          EOF
+
+          git add comprehensive_diagnostic_*.md raw_api_responses_*.json
+          git commit -m "Auto-commit: comprehensive Metaculus API diagnostic results" || echo "No changes to commit"
+          git push || echo "Push failed"
+
+    env:
+      GITHUB_ACTIONS: "true"
+      METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
