@@ -1,0 +1,20 @@
+name: Basic Test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"  # Every 10 minutes
+
+jobs:
+  basic_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Basic Test
+        run: |
+          echo "Basic test at $(date)" > basic_test_output.txt
+          echo "Test successful" >> basic_test_output.txt
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: basic-test-results
+          path: basic_test_output.txt

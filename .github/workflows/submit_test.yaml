@@ -1,0 +1,71 @@
+name: Submit Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  submit_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: pip install requests
+      - name: Test Submission
+        run: |
+          python3 -c "
+import requests
+from datetime import datetime
+
+token = '${{ secrets.METACULUS_TOKEN }}'
+if not token or token == '':
+    print('❌ No METACULUS_TOKEN')
+    exit(1)
+
+headers = {'Authorization': f'Token {token}', 'Content-Type': 'application/json'}
+
+# Test basic API access
+try:
+    response = requests.get('https://www.metaculus.com/api/posts/39988/', headers=headers)
+    print(f'API Access: {response.status_code}')
+    if response.status_code == 200:
+        data = response.json()
+        print(f'Question: {data.get(\"title\", \"No title\")[:50]}...')
+
+        # Test submission
+        submission_data = [{
+            'question': 39988,
+            'prediction': 0.3  # 30%
+        }]
+
+        sub_response = requests.post('https://www.metaculus.com/api/questions/forecast/',
+                                   headers=headers, json=submission_data)
+        print(f'Submission: {sub_response.status_code}')
+
+        with open('submission_test_result.txt', 'w') as f:
+            f.write(f'Test at {datetime.now()}\n')
+            f.write(f'API Access: {response.status_code}\n')
+            f.write(f'Submission: {sub_response.status_code}\n')
+            f.write(f'Question: {data.get(\"title\", \"No title\")}\n')
+            if sub_response.status_code == 200:
+                f.write('✅ SUBMISSION SUCCESSFUL\n')
+            else:
+                f.write(f'❌ Submission failed: {sub_response.text}\n')
+    else:
+        print(f'❌ API access failed: {response.status_code}')
+        with open('submission_test_result.txt', 'w') as f:
+            f.write(f'API Access Failed: {response.status_code}\n')
+except Exception as e:
+    print(f'❌ Error: {e}')
+    with open('submission_test_result.txt', 'w') as f:
+        f.write(f'Error: {e}\n')
+"
+      - name: Upload Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: submission-test-results
+          path: submission_test_result.txt
