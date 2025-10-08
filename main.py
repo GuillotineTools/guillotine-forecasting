@@ -1886,43 +1886,71 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             # Lightweight mode focusing on Market Pulse Challenge and Fall AIB for frequent monitoring
             logger.info("Starting Market Pulse + Fall AIB only mode - frequent monitoring")
             
-            # TEMPORARY: Try to find specific Market Pulse questions for testing
-            logger.info("DEBUG: Searching specifically for Market Pulse questions...")
+            # FIXED APPROACH: Handle Market Pulse group questions properly
+            logger.info("Looking for Market Pulse questions (including group questions)...")
             
-            # Get the specific S&P 500 question we know exists
-            sp500_question = asyncio.run(MetaculusApi.get_question_by_post_id(40228))
-            try:
-                logger.info(f"Found S&P 500 question: {sp500_question.question_text[:80]}...")
-                logger.info(f"Status: {getattr(sp500_question, 'state.name', 'unknown')}")
+            # Step 1: Get all open Fall AIB questions first
+            fall_aib_filter = ApiFilter(
+                allowed_statuses=["open"],
+                allowed_tournaments=["fall-aib-2025"]  # Only Fall AIB for regular filter
+            )
+            
+            all_market_pulse_questions = []
+            
+            # Step 2: Get Fall AIB questions
+            fall_aib_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(fall_aib_filter)
+            )
+            logger.info(f"Found {len(fall_aib_questions)} Fall AIB questions")
+            all_market_pulse_questions.extend(fall_aib_questions)
+            
+            # Step 3: Get known Market Pulse sub-questions directly
+            # These are the sub-questions of the S&P 500 group question (40228)
+            market_pulse_sub_ids = [39762, 39763, 39765]  # ARES, MSTR, CVNA
+            
+            logger.info(f"Checking Market Pulse sub-questions: {market_pulse_sub_ids}")
+            
+            async def fetch_market_pulse_subs():
+                subs = []
+                for sub_id in market_pulse_sub_ids:
+                    try:
+                        sub_question = await MetaculusApi.get_question_by_post_id(sub_id)
+                        
+                        # Verify it's a Market Pulse question
+                        is_market_pulse = False
+                        if hasattr(sub_question, 'projects'):
+                            for p in sub_question.projects:
+                                if hasattr(p, 'type') and p.type == 'tournament':
+                                    if 'market pulse' in p.name.lower():
+                                        is_market_pulse = True
+                                        logger.info(f"Found Market Pulse sub-question: {sub_question.question_text[:50]}... (ID: {sub_id})")
+                        
+                        if is_market_pulse:
+                            subs.append(sub_question)
+                        
+                    except Exception as e:
+                        logger.warning(f"Could not fetch sub-question {sub_id}: {e}")
+                return subs
+            
+            market_pulse_subs = asyncio.run(fetch_market_pulse_subs())
+            all_market_pulse_questions.extend(market_pulse_subs)
+            
+            logger.info(f"Total Market Pulse + Fall AIB questions: {len(all_market_pulse_questions)}")
+            
+            # Step 4: Forecast on all found questions
+            fall_aib_reports = asyncio.run(
+                template_bot.forecast_questions(all_market_pulse_questions, return_exceptions=True)
+            )
+            forecast_reports = fall_aib_reports
+            
+            # Send alerts for Market Pulse + Fall AIB questions
+            for report in forecast_reports:
+                if isinstance(report, Exception):
+                    logger.error(f"Error forecasting Market Pulse/Fall AIB question: {report}")
+                    continue
                 
-                if hasattr(sp500_question, 'projects') and sp500_question.projects:
-                    for p in sp500_question.projects:
-                        if hasattr(p, 'type') and p.type == 'tournament':
-                            logger.info(f"Tournament: {p.name} (ID: {p.id}, slug: {getattr(p, 'slug', 'unknown')})")
+                q = report.question
                 
-                # Try to forecast on it
-                market_questions = [sp500_question]
-                fall_aib_reports = asyncio.run(
-                    template_bot.forecast_questions(market_questions, return_exceptions=True)
-                )
-                forecast_reports = fall_aib_reports
-            except Exception as e:
-                logger.error(f"Error getting S&P 500 question: {e}")
-                
-                # Fall back to the regular filter
-                fall_aib_filter = ApiFilter(
-                    allowed_statuses=["open"],
-                    allowed_tournaments=["fall-aib-2025", 32831, "market-pulse-25q4"]  # Try both ID and slug
-                )
-                fall_aib_questions = asyncio.run(
-                    MetaculusApi.get_questions_matching_filter(fall_aib_filter)
-                )
-                
-                logger.info(f"Found {len(fall_aib_questions)} open Market Pulse + Fall AIB questions")
-                fall_aib_reports = asyncio.run(
-                    template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
-                )
-                forecast_reports = fall_aib_reports
                 try:
                     question_type = "binary"
                     if hasattr(q, 'question_type'):
@@ -1936,7 +1964,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                     if hasattr(q, 'projects') and q.projects:
                         for p in q.projects:
                             if hasattr(p, 'type') and p.type == 'tournament':
-                                if 'market-pulse-25q4' in p.slug:
+                                if 'market-pulse-25q4' in getattr(p, 'slug', ''):
                                     tournament_name = "Market Pulse Challenge 25Q4"
                                     break
                     
