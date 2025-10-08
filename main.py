@@ -1878,19 +1878,6 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             forecast_reports = asyncio.run(
                 template_bot.forecast_questions(questions, return_exceptions=True)
             )
-        else:
-            logger.warning(f"Unknown run mode: {run_mode}")
-            exit(1)
-
-    # Log final summary
-        if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}")
-            
-            # Check for recently missed questions that the bot might have missed
-            # This catches questions that were only open for a short time window
-            logger.info("Checking for recently missed questions...")
-            recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
-            forecast_reports.extend(recently_missed_reports)
         elif run_mode == "market_pulse_fall_aib_only":
             # Lightweight mode focusing on Market Pulse Challenge and Fall AIB for frequent monitoring
             logger.info("Starting Market Pulse + Fall AIB only mode - frequent monitoring")
@@ -1971,6 +1958,19 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 logger.info("No recently missed Fall AIB questions")
             
             forecast_reports = fall_aib_reports
+        else:
+            logger.warning(f"Unknown run mode: {run_mode}")
+            exit(1)
+
+    # Log final summary
+        if run_mode == "tournament":
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}")
+            
+            # Check for recently missed questions that the bot might have missed
+            # This catches questions that were only open for a short time window
+            logger.info("Checking for recently missed questions...")
+            recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
+            forecast_reports.extend(recently_missed_reports)
 
         logger.info("Forecasting completed successfully")
         template_bot.log_report_summary(forecast_reports)
