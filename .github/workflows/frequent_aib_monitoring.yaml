@@ -1,4 +1,4 @@
-name: Every 15 Minutes Fall AIB Monitoring
+name: Every 15 Minutes Market Pulse + Fall AIB Monitoring
 
 on:
   schedule:
@@ -25,9 +25,9 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "Starting frequent Fall AIB monitoring (every 15 minutes)..."
-          echo "Using lightweight fall_aib_only mode to optimize for frequent runs"
-          python3 main.py --mode fall_aib_only
+          echo "Starting frequent Market Pulse + Fall AIB monitoring (every 15 minutes)..."
+          echo "Using lightweight market_pulse_fall_aib_only mode to optimize for frequent runs"
+          python3 main.py --mode market_pulse_fall_aib_only
         continue-on-error: true
       - name: Upload Results
         uses: actions/upload-artifact@v4

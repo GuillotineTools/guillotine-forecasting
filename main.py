@@ -1489,7 +1489,7 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["tournament", "metaculus_cup", "test_questions", "fall_aib_only"],
+        choices=["tournament", "metaculus_cup", "test_questions", "market_pulse_fall_aib_only"],
         default="tournament",
         help="Specify the run mode (default: tournament)",
     )
@@ -1806,6 +1806,42 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 template_bot.forecast_questions(rand_questions, return_exceptions=True)
             )
             
+            # Get Market Pulse Challenge 25Q4 questions
+            logger.info("Getting Market Pulse Challenge 25Q4 tournament questions")
+            market_pulse_filter = ApiFilter(
+                allowed_statuses=["open"],
+                allowed_tournaments=["market-pulse-25q4"]
+            )
+            market_pulse_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(market_pulse_filter)
+            )
+            
+            logger.info(f"Found {len(market_pulse_questions)} open Market Pulse Challenge 25Q4 questions")
+            for q in market_pulse_questions:
+                logger.info(f"  - {q.page_url}: {q.question_text[:80]}... (Status: {getattr(q, 'state.name', 'unknown')})")
+                
+                # Send ntfy alerts for new Market Pulse questions
+                try:
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+                    
+                    send_new_question_alert(
+                        question_title=f"[MARKET PULSE] {q.question_text[:80]}...",
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="Market Pulse Challenge 25Q4"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for Market Pulse question {q.page_url}: {e}")
+
+            market_pulse_reports = asyncio.run(
+                template_bot.forecast_questions(market_pulse_questions, return_exceptions=True)
+            )
+            
             forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
         elif run_mode == "metaculus_cup":
             # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
@@ -1847,7 +1883,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 
     # Log final summary
         if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}")
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}")
             
             # Check for recently missed questions that the bot might have missed
             # This catches questions that were only open for a short time window
@@ -1896,7 +1932,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info("Checking for recently missed Fall AIB questions...")
             recent_fall_aib_filter = ApiFilter(
                 allowed_statuses=["closed"],
-                allowed_tournaments=["fall-aib-2025"]
+                allowed_tournaments=["fall-aib-2025", "market-pulse-25q4"]
             )
             recent_fall_aib = asyncio.run(
                 MetaculusApi.get_questions_matching_filter(recent_fall_aib_filter)
@@ -1988,7 +2024,7 @@ async def check_recently_missed_questions(template_bot):
     # Look for questions that closed in the last 24 hours and are from our tournaments
     recent_filter = ApiFilter(
         allowed_statuses=["closed"],
-        tournament_includes=["ai-competition", "minibench", "fall-aib-2025", "POTUS-predictions", "rand"]
+        tournament_includes=["ai-competition", "minibench", "fall-aib-2025", "POTUS-predictions", "rand", "market-pulse-25q4"]
     )
     
     try:
