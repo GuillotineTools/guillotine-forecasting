@@ -1606,6 +1606,10 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
     except Exception as e:
         logger.warning(f"Failed to send ntfy startup notification: {e}")
 
+    # Import shared components for all modes
+    from forecasting_tools.helpers.metaculus_api import ApiFilter
+    from forecasting_tools import MetaculusApi
+
     try:
         if run_mode == "tournament":
             logger.info("Starting tournament mode forecast")
