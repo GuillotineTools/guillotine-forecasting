@@ -1889,12 +1889,22 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             # ROBUST APPROACH: Search all open questions for Market Pulse tournament
             logger.info("Searching all open questions for Market Pulse tournament...")
             
-            # Step 1: Get all open questions
+            # Step 1: Get more open questions (search deeper)
             all_filter = ApiFilter(allowed_statuses=["open"])
             all_open_questions = asyncio.run(
                 MetaculusApi.get_questions_matching_filter(all_filter)
             )
             logger.info(f"Searching {len(all_open_questions)} open questions for Market Pulse...")
+            
+            # DEBUG: Show first few questions to see what we're actually getting
+            logger.info("DEBUG: First 5 questions found:")
+            for i, q in enumerate(all_open_questions[:5]):
+                logger.info(f"   {i+1}. {q.page_url}: {q.question_text[:60]}...")
+                if hasattr(q, 'projects') and q.projects:
+                    for p in q.projects:
+                        if hasattr(p, 'type') and p.type == 'tournament':
+                            logger.info(f"      Tournament: {p.name}")
+                logger.info("---")
             
             # Step 2: Find questions that belong to Market Pulse tournament
             market_pulse_questions = []
