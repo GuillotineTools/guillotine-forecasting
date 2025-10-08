@@ -1891,7 +1891,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             
             fall_aib_filter = ApiFilter(
                 allowed_statuses=["open"],
-                allowed_tournaments=["fall-aib-2025", "market-pulse-25q4"]
+                allowed_tournaments=["fall-aib-2025", 32831]  # Use numeric ID for Market Pulse
             )
             fall_aib_questions = asyncio.run(
                 MetaculusApi.get_questions_matching_filter(fall_aib_filter)
