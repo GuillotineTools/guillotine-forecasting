@@ -1494,11 +1494,12 @@ def main():
         help="Specify the run mode (default: tournament)",
     )
     args = parser.parse_args()
-    run_mode: Literal["tournament", "metaculus_cup", "test_questions"] = args.mode
+    run_mode: Literal["tournament", "metaculus_cup", "test_questions", "market_pulse_fall_aib_only"] = args.mode
     assert run_mode in [
         "tournament",
-        "metaculus_cup",
+        "metaculus_cup", 
         "test_questions",
+        "market_pulse_fall_aib_only",
     ], "Invalid run mode"
 
     publish_reports = run_mode != "test_questions"
@@ -1890,7 +1891,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info("Checking for recently missed questions...")
             recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
             forecast_reports.extend(recently_missed_reports)
-        elif run_mode == "fall_aib_only":
+        elif run_mode == "market_pulse_fall_aib_only":
             # Lightweight mode focusing only on Fall AIB 2025 for frequent monitoring
             logger.info("Starting Fall AIB only mode - frequent monitoring")
             
