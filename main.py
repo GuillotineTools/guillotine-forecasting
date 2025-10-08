@@ -1848,6 +1848,12 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
     # Log final summary
         if run_mode == "tournament":
             logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}")
+            
+            # Check for recently missed questions that the bot might have missed
+            # This catches questions that were only open for a short time window
+            logger.info("Checking for recently missed questions...")
+            recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
+            forecast_reports.extend(recently_missed_reports)
         else:
             logger.info(f"All processing completed for {run_mode} mode")
 
@@ -1897,6 +1903,58 @@ Questions with errors: {len([r for r in forecast_reports if isinstance(r, Except
             logger.info("Exiting gracefully in GitHub Actions environment")
             # Exit gracefully in GitHub Actions
             exit(0)
+
+
+async def check_recently_missed_questions(template_bot):
+    """
+    Check for recently closed questions that the bot might have missed.
+    This catches questions that were only open for a short time window.
+    """
+    from datetime import datetime, timedelta
+    from forecasting_tools.question_handlers.metaculus_api import MetaculusApi
+    from forecasting_tools.data_models import Question, QuestionStatus
+    
+    # Look for questions that closed in the last 24 hours and are from our tournaments
+    recent_filter = ApiFilter(
+        allowed_statuses=["closed"],
+        tournament_includes=["ai-competition", "minibench", "fall-aib-2025", "POTUS-predictions", "rand"]
+    )
+    
+    try:
+        # Get recently closed questions
+        recent_closed = await MetaculusApi.get_questions_matching_filter(recent_filter)
+        logger.info(f"Found {len(recent_closed)} recently closed questions")
+        
+        missed_questions = []
+        now = datetime.now()
+        one_day_ago = now - timedelta(days=1)
+        
+        for q in recent_closed:
+            # Check if this question closed in the last 24 hours
+            if hasattr(q, 'actual_close_time') and q.actual_close_time:
+                close_time = q.actual_close_time.replace(tzinfo=None)  # Remove timezone for comparison
+                
+                if close_time > one_day_ago:
+                    # Check if this bot has already predicted on this question
+                    has_forecasted = await template_bot.has_predicted_on_question(q)
+                    
+                    if not has_forecasted:
+                        logger.warning(f"Found recently missed question: {q.page_url}")
+                        logger.info(f"  - Closed: {close_time} (Status: {getattr(q, 'state.name', 'closed')})")
+                        missed_questions.append(q)
+        
+        if missed_questions:
+            logger.info(f"Bot missed {len(missed_questions)} questions that were recently closed")
+            # Try to forecast on these missed questions (they won't count for tournaments but good for practice)
+            missed_reports = await template_bot.forecast_questions(missed_questions, return_exceptions=True)
+            return missed_reports
+        else:
+            logger.info("No recently missed questions found")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error checking for recently missed questions: {e}")
+        return []
 
 
 if __name__ == "__main__":
