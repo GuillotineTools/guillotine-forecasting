@@ -1,0 +1,142 @@
+name: Explore Market Pulse API Structure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  explore_api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          pip install python-decouple requests asknews numpy openai python-dotenv forecasting-tools
+      - name: Explore API Structure
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "=== EXPLORING MARKET PULSE API STRUCTURE ==="
+          python3 -c "
+import asyncio
+import os
+from forecasting_tools import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import ApiFilter
+
+async def explore_market_pulse():
+    try:
+        print('=== MARKET PULSE API EXPLORATION ===')
+        
+        # Test 1: Check known sub-questions
+        print('\n1. Testing known Market Pulse sub-questions...')
+        sub_ids = [39762, 39763, 39765]  # ARES, MSTR, CVNA
+        
+        market_pulse_sub_questions = []
+        for sub_id in sub_ids:
+            try:
+                question = await MetaculusApi.get_question_by_post_id(sub_id)
+                print(f'   ✅ {sub_id}: {question.question_text[:60]}...')
+                print(f'      Status: {getattr(question, \"state.name\", \"unknown\")}')
+                
+                is_market_pulse = False
+                if hasattr(question, 'projects'):
+                    for p in question.projects:
+                        if hasattr(p, 'type') and p.type == 'tournament':
+                            if 'market pulse' in p.name.lower():
+                                print(f'      🏆 Tournament: {p.name} (ID: {p.id})')
+                                is_market_pulse = True
+                
+                if is_market_pulse:
+                    market_pulse_sub_questions.append(question)
+                
+                print()
+                
+            except Exception as e:
+                print(f'   ❌ {sub_id}: Error - {e}')
+        
+        print(f'Market Pulse sub-questions found: {len(market_pulse_sub_questions)}')
+        
+        # Test 2: Search for all open questions and find S&P 500
+        print('\n2. Searching for S&P 500 questions in open questions...')
+        all_filter = ApiFilter(allowed_statuses=['open'])
+        all_questions = await MetaculusApi.get_questions_matching_filter(all_filter)
+        print(f'Total open questions: {len(all_questions)}')
+        
+        sp500_questions = []
+        for q in all_questions[:200]:  # Check first 200
+            if hasattr(q, 'question_text') and 'S&P 500' in q.question_text:
+                sp500_questions.append(q)
+        
+        print(f'S&P 500 questions: {len(sp500_questions)}')
+        
+        # Check tournament info for S&P 500 questions
+        sp500_market_pulse = []
+        for q in sp500_questions:
+            is_market_pulse = False
+            tournament_info = {}
+            if hasattr(q, 'projects'):
+                for p in q.projects:
+                    if hasattr(p, 'type') and p.type == 'tournament':
+                        tournament_info = {
+                            'name': p.name,
+                            'id': p.id,
+                            'slug': getattr(p, 'slug', 'N/A')
+                        }
+                        if 'market pulse' in p.name.lower():
+                            is_market_pulse = True
+            
+            print(f'   📈 {q.page_url}: {q.question_text[:60]}...')
+            print(f'      Tournament: {tournament_info.get(\"name\", \"None\")}')
+            print(f'      Is Market Pulse: {is_market_pulse}')
+            
+            if is_market_pulse:
+                sp500_market_pulse.append(q)
+            print()
+        
+        print(f'Market Pulse S&P 500 questions: {len(sp500_market_pulse)}')
+        
+        # Test 3: Try different tournament filters
+        print('\n3. Testing different tournament filter approaches...')
+        
+        approaches = [
+            ('by slug', ['market-pulse-25q4']),
+            ('by ID', [32831]),
+            ('by mixed', ['market-pulse-25q4', 32831]),
+        ]
+        
+        for name, tournaments in approaches:
+            try:
+                test_filter = ApiFilter(
+                    allowed_statuses=['open'],
+                    allowed_tournaments=tournaments
+                )
+                filtered_questions = await MetaculusApi.get_questions_matching_filter(test_filter)
+                print(f'   {name}: Found {len(filtered_questions)} questions')
+                
+                # Count how many are actually Market Pulse
+                actual_market_pulse = 0
+                for q in filtered_questions:
+                    if hasattr(q, 'projects'):
+                        for p in q.projects:
+                            if hasattr(p, 'type') and p.type == 'tournament':
+                                if 'market pulse' in p.name.lower():
+                                    actual_market_pulse += 1
+                                    break
+                
+                print(f'   {name}: Actual Market Pulse questions: {actual_market_pulse}')
+                
+            except Exception as e:
+                print(f'   {name}: Error - {e}')
+        
+    except Exception as e:
+        print(f'Error: {e}')
+        import traceback
+        traceback.print_exc()
+
+asyncio.run(explore_market_pulse())
+"
