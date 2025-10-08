@@ -1971,8 +1971,6 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 logger.info("No recently missed Fall AIB questions")
             
             forecast_reports = fall_aib_reports
-        else:
-            logger.info(f"All processing completed for {run_mode} mode")
 
         logger.info("Forecasting completed successfully")
         template_bot.log_report_summary(forecast_reports)
