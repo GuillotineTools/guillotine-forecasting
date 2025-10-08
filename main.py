@@ -1900,10 +1900,15 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info("DEBUG: First 5 questions found:")
             for i, q in enumerate(all_open_questions[:5]):
                 logger.info(f"   {i+1}. {q.page_url}: {q.question_text[:60]}...")
-                if hasattr(q, 'projects') and q.projects:
+                logger.info(f"      Has projects: {hasattr(q, 'projects')}")
+                if hasattr(q, 'projects'):
+                    logger.info(f"      Projects count: {len(q.projects)}")
                     for p in q.projects:
+                        logger.info(f"      Project type: {getattr(p, 'type', 'N/A')}")
                         if hasattr(p, 'type') and p.type == 'tournament':
-                            logger.info(f"      Tournament: {p.name}")
+                            logger.info(f"      Tournament name: '{p.name}' (lowercase: '{p.name.lower()}')")
+                            logger.info(f"      Tournament ID: {getattr(p, 'id', 'N/A')}")
+                            logger.info(f"      Tournament slug: {getattr(p, 'slug', 'N/A')}")
                 logger.info("---")
             
             # Step 2: Find questions that belong to Market Pulse tournament
