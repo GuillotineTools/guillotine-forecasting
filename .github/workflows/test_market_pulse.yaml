@@ -1,0 +1,55 @@
+name: Test Market Pulse Questions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_market_pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          pip install python-decouple requests asknews numpy openai python-dotenv forecasting-tools
+      - name: Test Market Pulse Questions
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "=== Testing Market Pulse Questions ==="
+          python3 -c "
+import asyncio
+import os
+from forecasting_tools import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import ApiFilter
+
+async def test():
+    print(f'Market Pulse ID: {MetaculusApi.CURRENT_MARKET_PULSE_ID}')
+    
+    try:
+        market_filter = ApiFilter(
+            allowed_statuses=['open'],
+            allowed_tournaments=[MetaculusApi.CURRENT_MARKET_PULSE_ID]
+        )
+        questions = await MetaculusApi.get_questions_matching_filter(market_filter)
+        print(f'Found {len(questions)} open Market Pulse questions')
+        
+        for i, q in enumerate(questions):
+            print(f'{i+1}. {q.question_text[:100]}...')
+            print(f'   URL: {q.page_url}')
+            print()
+            
+    except Exception as e:
+        print(f'Error: {e}')
+        import traceback
+        traceback.print_exc()
+
+asyncio.run(test())
+"
+        continue-on-error: true
