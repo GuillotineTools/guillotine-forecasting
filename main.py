@@ -1489,7 +1489,7 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["tournament", "metaculus_cup", "test_questions"],
+        choices=["tournament", "metaculus_cup", "test_questions", "fall_aib_only"],
         default="tournament",
         help="Specify the run mode (default: tournament)",
     )
@@ -1854,6 +1854,77 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info("Checking for recently missed questions...")
             recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
             forecast_reports.extend(recently_missed_reports)
+        elif run_mode == "fall_aib_only":
+            # Lightweight mode focusing only on Fall AIB 2025 for frequent monitoring
+            logger.info("Starting Fall AIB only mode - frequent monitoring")
+            
+            fall_aib_filter = ApiFilter(
+                allowed_statuses=["open"],
+                allowed_tournaments=["fall-aib-2025"]
+            )
+            fall_aib_questions = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(fall_aib_filter)
+            )
+            
+            logger.info(f"Found {len(fall_aib_questions)} open Fall AIB questions")
+            for q in fall_aib_questions:
+                logger.info(f"  - {q.page_url}: {q.question_text[:80]}... (Status: {getattr(q, 'state.name', 'unknown')})")
+                
+                # Send ntfy alerts for new Fall AIB questions
+                try:
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+                    
+                    send_new_question_alert(
+                        question_title=f"[FALL AIB] {q.question_text[:80]}...",
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="Fall AIB 2025"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for Fall AIB question {q.page_url}: {e}")
+
+            fall_aib_reports = asyncio.run(
+                template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
+            )
+            
+            # Also check for recently missed Fall AIB questions
+            logger.info("Checking for recently missed Fall AIB questions...")
+            recent_fall_aib_filter = ApiFilter(
+                allowed_statuses=["closed"],
+                allowed_tournaments=["fall-aib-2025"]
+            )
+            recent_fall_aib = asyncio.run(
+                MetaculusApi.get_questions_matching_filter(recent_fall_aib_filter)
+            )
+            
+            now = datetime.now()
+            one_day_ago = now - timedelta(days=1)
+            missed_fall_aib = []
+            
+            for q in recent_fall_aib:
+                if hasattr(q, 'actual_close_time') and q.actual_close_time:
+                    close_time = q.actual_close_time.replace(tzinfo=None)
+                    if close_time > one_day_ago:
+                        has_forecasted = asyncio.run(template_bot.has_predicted_on_question(q))
+                        if not has_forecasted:
+                            logger.warning(f"Missed Fall AIB question: {q.page_url}")
+                            missed_fall_aib.append(q)
+            
+            if missed_fall_aib:
+                logger.info(f"Found {len(missed_fall_aib)} recently missed Fall AIB questions")
+                missed_reports = asyncio.run(
+                    template_bot.forecast_questions(missed_fall_aib, return_exceptions=True)
+                )
+                fall_aib_reports.extend(missed_reports)
+            else:
+                logger.info("No recently missed Fall AIB questions")
+            
+            forecast_reports = fall_aib_reports
         else:
             logger.info(f"All processing completed for {run_mode} mode")
 

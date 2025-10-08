@@ -1,0 +1,37 @@
+name: Every 15 Minutes Fall AIB Monitoring
+
+on:
+  schedule:
+    # EVERY 15 MINUTES - Maximum coverage for random Fall AIB drops
+    - cron: '*/15 * * * *'  # Every 15 minutes, 24/7
+  workflow_dispatch:
+
+jobs:
+  frequent_monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          pip install python-decouple requests asknews numpy openai python-dotenv forecasting-tools
+      - name: Run Frequent Tournament Mode
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Starting frequent Fall AIB monitoring (every 15 minutes)..."
+          echo "Using lightweight fall_aib_only mode to optimize for frequent runs"
+          python3 main.py --mode fall_aib_only
+        continue-on-error: true
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: frequent-monitoring-results
+          path: outputs/
+          retention-days: 7
