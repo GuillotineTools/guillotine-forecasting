@@ -1,0 +1,96 @@
+name: Debug Market Pulse Filter
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug_market_pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          pip install python-decouple requests asknews numpy openai python-dotenv forecasting-tools
+      - name: Debug Market Pulse Filtering
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "=== DEBUG: Testing Market Pulse Filtering ==="
+          python3 -c "
+import asyncio
+import os
+from forecasting_tools import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import ApiFilter
+
+async def test_market_pulse():
+    try:
+        print(f'Current Market Pulse ID: {MetaculusApi.CURRENT_MARKET_PULSE_ID}')
+        
+        # Test the exact filter being used
+        print('\n1. Testing Market Pulse filter by slug...')
+        try:
+            market_filter = ApiFilter(
+                allowed_statuses=['open'],
+                allowed_tournaments=[MetaculusApi.CURRENT_MARKET_PULSE_ID]
+            )
+            market_questions = await MetaculusApi.get_questions_matching_filter(market_filter)
+            print(f'   Filter by slug {MetaculusApi.CURRENT_MARKET_PULSE_ID} found: {len(market_questions)} questions')
+        except Exception as e:
+            print(f'   Error with slug filter: {e}')
+        
+        # Try with tournament ID
+        print('\n2. Testing Market Pulse filter by tournament ID...')
+        try:
+            market_filter = ApiFilter(
+                allowed_statuses=['open'],
+                allowed_tournaments=[32831]  # The tournament ID
+            )
+            market_questions = await MetaculusApi.get_questions_matching_filter(market_filter)
+            print(f'   Filter by ID 32831 found: {len(market_questions)} questions')
+        except Exception as e:
+            print(f'   Error with ID filter: {e}')
+        
+        # Test manual search
+        print('\n3. Testing manual search in all open questions...')
+        try:
+            all_filter = ApiFilter(allowed_statuses=['open'])
+            all_questions = await MetaculusApi.get_questions_matching_filter(all_filter)
+            print(f'   Total open questions: {len(all_questions)}')
+            
+            market_pulse_manual = []
+            for q in all_questions[:200]:  # Check first 200 for speed
+                if hasattr(q, 'projects') and q.projects:
+                    for p in q.projects:
+                        if hasattr(p, 'type') and p.type == 'tournament':
+                            if hasattr(p, 'name') and 'market pulse' in p.name.lower():
+                                market_pulse_manual.append(q)
+                                break
+            
+            print(f'   Manual Market Pulse search found: {len(market_pulse_manual)} questions')
+            
+            # Show first few examples
+            for i, q in enumerate(market_pulse_manual[:5]):
+                print(f'     {i+1}. {q.question_text[:60]}...')
+                if q.projects:
+                    for p in q.projects:
+                        if hasattr(p, 'type') and p.type == 'tournament':
+                            print(f'        Tournament: {p.name} (ID: {p.id})')
+                            break
+                print()
+                
+        except Exception as e:
+            print(f'   Error with manual search: {e}')
+        
+    except Exception as e:
+        print(f'Error: {e}')
+        import traceback
+        traceback.print_exc()
+
+asyncio.run(test_market_pulse())
+"
