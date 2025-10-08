@@ -5,7 +5,7 @@ import argparse
 import asyncio
 import logging
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -2029,7 +2029,7 @@ async def check_recently_missed_questions(template_bot):
     Check for recently closed questions that the bot might have missed.
     This catches questions that were only open for a short time window.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timedelta
     from forecasting_tools.question_handlers.metaculus_api import MetaculusApi
     from forecasting_tools.data_models import Question, QuestionStatus
     
