@@ -1886,6 +1886,9 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             # Lightweight mode focusing on Market Pulse Challenge and Fall AIB for frequent monitoring
             logger.info("Starting Market Pulse + Fall AIB only mode - frequent monitoring")
             
+            # DEBUG: Test different approaches to find Market Pulse questions
+            logger.info(f"DEBUG: Market Pulse ID = {MetaculusApi.CURRENT_MARKET_PULSE_ID}")
+            
             fall_aib_filter = ApiFilter(
                 allowed_statuses=["open"],
                 allowed_tournaments=["fall-aib-2025", "market-pulse-25q4"]
@@ -1895,8 +1898,18 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             )
             
             logger.info(f"Found {len(fall_aib_questions)} open Market Pulse + Fall AIB questions")
-            for q in fall_aib_questions:
-                logger.info(f"  - {q.page_url}: {q.question_text[:80]}... (Status: {getattr(q, 'state.name', 'unknown')})")
+            
+            # DEBUG: Check what we're actually getting
+            logger.info("DEBUG: Checking first few questions for tournament info...")
+            for i, q in enumerate(fall_aib_questions[:10]):
+                logger.info(f"DEBUG Q{i+1}: {q.page_url}")
+                logger.info(f"DEBUG Q{i+1}: Title: {q.question_text[:80]}...")
+                if hasattr(q, 'projects') and q.projects:
+                    for p in q.projects:
+                        if hasattr(p, 'type') and p.type == 'tournament':
+                            logger.info(f"DEBUG Q{i+1}: Tournament: {p.name} (ID: {p.id}, slug: {p.slug})")
+                logger.info(f"DEBUG Q{i+1}: Status: {getattr(q, 'state.name', 'unknown')}")
+                logger.info("---")
                 
                 # Send ntfy alerts for new Market Pulse + Fall AIB questions
                 try:
