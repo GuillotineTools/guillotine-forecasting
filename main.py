@@ -1889,65 +1889,67 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             # ROBUST APPROACH: Search all open questions for Market Pulse tournament
             logger.info("Searching all open questions for Market Pulse tournament...")
             
-            # Step 1: Get more open questions (search deeper)
+            # FINAL SOLUTION: Work with actual API structure limitations
+            logger.info("Using Market Pulse detection that works with API limitations...")
+            
+            # Step 1: Get all open questions
             all_filter = ApiFilter(allowed_statuses=["open"])
-            all_open_questions = asyncio.run(
+            all_questions = asyncio.run(
                 MetaculusApi.get_questions_matching_filter(all_filter)
             )
-            logger.info(f"Searching {len(all_open_questions)} open questions for Market Pulse...")
+            logger.info(f"Searching {len(all_questions)} open questions...")
             
-            # DEBUG: Show first few questions to see what we're actually getting
-            logger.info("DEBUG: First 5 questions found:")
-            for i, q in enumerate(all_open_questions[:5]):
-                logger.info(f"   {i+1}. {q.page_url}: {q.question_text[:60]}...")
-                logger.info(f"      Has projects: {hasattr(q, 'projects')}")
-                if hasattr(q, 'projects'):
-                    logger.info(f"      Projects count: {len(q.projects)}")
-                    for p in q.projects:
-                        logger.info(f"      Project type: {getattr(p, 'type', 'N/A')}")
-                        if hasattr(p, 'type') and p.type == 'tournament':
-                            logger.info(f"      Tournament name: '{p.name}' (lowercase: '{p.name.lower()}')")
-                            logger.info(f"      Tournament ID: {getattr(p, 'id', 'N/A')}")
-                            logger.info(f"      Tournament slug: {getattr(p, 'slug', 'N/A')}")
-                logger.info("---")
-            
-            # Step 2: Find questions that belong to Market Pulse tournament
-            market_pulse_questions = []
-            fall_aib_questions = []
-            
-            for q in all_open_questions:
-                is_market_pulse = False
-                is_fall_aib = False
-                
-                # Check tournament membership
+            # Step 2: Get questions that DO have tournament metadata (rare cases)
+            tournament_questions = []
+            for q in all_questions:
                 if hasattr(q, 'projects') and q.projects:
                     for p in q.projects:
                         if hasattr(p, 'type') and p.type == 'tournament':
-                            if 'market pulse' in p.name.lower():
-                                is_market_pulse = True
-                                logger.info(f"Found Market Pulse question: {q.question_text[:60]}... (ID: {q.id})")
-                            elif 'fall aib' in p.name.lower():
-                                is_fall_aib = True
-                
-                if is_market_pulse:
-                    market_pulse_questions.append(q)
-                elif is_fall_aib:
-                    fall_aib_questions.append(q)
+                            tournament_questions.append(q)
+                            break
             
-            logger.info(f"Found {len(market_pulse_questions)} Market Pulse questions")
-            logger.info(f"Found {len(fall_aib_questions)} Fall AIB questions")
+            logger.info(f"Found {len(tournament_questions)} questions with tournament metadata")
             
-            # Step 3: Combine all questions
-            all_market_pulse_questions = market_pulse_questions + fall_aib_questions
-            logger.info(f"Total Market Pulse + Fall AIB questions: {len(all_market_pulse_questions)}")
+            # Step 3: Look for Market Pulse questions by title patterns
+            market_pulse_questions = []
+            market_pulse_keywords = ['S&P 500', 'stock market', 'Market Pulse']
             
-            # Step 4: Forecast on all found questions
-            if all_market_pulse_questions:
+            for q in all_questions:
+                if hasattr(q, 'question_text'):
+                    question_text_lower = q.question_text.lower()
+                    if any(keyword.lower() in question_text_lower for keyword in market_pulse_keywords):
+                        market_pulse_questions.append(q)
+                        logger.info(f"Found Market Pulse by pattern: {q.question_text[:50]}...")
+            
+            logger.info(f"Found {len(market_pulse_questions)} Market Pulse questions by pattern")
+            
+            # Step 4: Look for Fall AIB questions by patterns  
+            fall_aib_keywords = ['artificial intelligence', 'AI safety', 'nuclear risk', 'climate change']
+            
+            fall_aib_questions = []
+            for q in all_questions:
+                if hasattr(q, 'question_text'):
+                    question_text_lower = q.question_text.lower()
+                    if any(keyword.lower() in question_text_lower for keyword in fall_aib_keywords):
+                        if q not in market_pulse_questions:  # Avoid duplicates
+                            fall_aib_questions.append(q)
+                            logger.info(f"Found Fall AIB by pattern: {q.question_text[:50]}...")
+            
+            logger.info(f"Found {len(fall_aib_questions)} Fall AIB questions by pattern")
+            
+            # Step 5: Combine all found questions, avoiding duplicates
+            all_found_questions = list(set(tournament_questions + market_pulse_questions + fall_aib_questions))
+            logger.info(f"Total unique questions found: {len(all_found_questions)}")
+            
+            # Step 6: Forecast on all found questions
+            if all_found_questions:
+                logger.info("Forecasting on all found questions...")
                 fall_aib_reports = asyncio.run(
-                    template_bot.forecast_questions(all_market_pulse_questions, return_exceptions=True)
+                    template_bot.forecast_questions(all_found_questions, return_exceptions=True)
                 )
                 forecast_reports = fall_aib_reports
             else:
+                logger.warning("No questions found to forecast on!")
                 forecast_reports = []
             
             # Send alerts for Market Pulse + Fall AIB questions
