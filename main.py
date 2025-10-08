@@ -1892,22 +1892,22 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             recently_missed_reports = asyncio.run(check_recently_missed_questions(template_bot))
             forecast_reports.extend(recently_missed_reports)
         elif run_mode == "market_pulse_fall_aib_only":
-            # Lightweight mode focusing only on Fall AIB 2025 for frequent monitoring
-            logger.info("Starting Fall AIB only mode - frequent monitoring")
+            # Lightweight mode focusing on Market Pulse Challenge and Fall AIB for frequent monitoring
+            logger.info("Starting Market Pulse + Fall AIB only mode - frequent monitoring")
             
             fall_aib_filter = ApiFilter(
                 allowed_statuses=["open"],
-                allowed_tournaments=["fall-aib-2025"]
+                allowed_tournaments=["fall-aib-2025", "market-pulse-25q4"]
             )
             fall_aib_questions = asyncio.run(
                 MetaculusApi.get_questions_matching_filter(fall_aib_filter)
             )
             
-            logger.info(f"Found {len(fall_aib_questions)} open Fall AIB questions")
+            logger.info(f"Found {len(fall_aib_questions)} open Market Pulse + Fall AIB questions")
             for q in fall_aib_questions:
                 logger.info(f"  - {q.page_url}: {q.question_text[:80]}... (Status: {getattr(q, 'state.name', 'unknown')})")
                 
-                # Send ntfy alerts for new Fall AIB questions
+                # Send ntfy alerts for new Market Pulse + Fall AIB questions
                 try:
                     question_type = "binary"
                     if hasattr(q, 'question_type'):
@@ -1916,21 +1916,30 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                         elif q.question_type.value == "multiple_choice":
                             question_type = "multiple_choice"
                     
+                    # Determine tournament name for alert
+                    tournament_name = "Fall AIB 2025"
+                    if hasattr(q, 'projects') and q.projects:
+                        for p in q.projects:
+                            if hasattr(p, 'type') and p.type == 'tournament':
+                                if 'market-pulse-25q4' in p.slug:
+                                    tournament_name = "Market Pulse Challenge 25Q4"
+                                    break
+                    
                     send_new_question_alert(
-                        question_title=f"[FALL AIB] {q.question_text[:80]}...",
+                        question_title=f"[{tournament_name.upper()}] {q.question_text[:80]}...",
                         question_url=q.page_url,
                         question_type=question_type,
-                        tournament="Fall AIB 2025"
+                        tournament=tournament_name
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to send ntfy alert for Fall AIB question {q.page_url}: {e}")
+                    logger.warning(f"Failed to send ntfy alert for Market Pulse/Fall AIB question {q.page_url}: {e}")
 
             fall_aib_reports = asyncio.run(
                 template_bot.forecast_questions(fall_aib_questions, return_exceptions=True)
             )
             
-            # Also check for recently missed Fall AIB questions
-            logger.info("Checking for recently missed Fall AIB questions...")
+            # Also check for recently missed Market Pulse + Fall AIB questions
+            logger.info("Checking for recently missed Market Pulse + Fall AIB questions...")
             recent_fall_aib_filter = ApiFilter(
                 allowed_statuses=["closed"],
                 allowed_tournaments=["fall-aib-2025", "market-pulse-25q4"]
