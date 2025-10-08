@@ -1938,7 +1938,15 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info(f"Found {len(fall_aib_questions)} Fall AIB questions by pattern")
             
             # Step 5: Combine all found questions, avoiding duplicates
-            all_found_questions = list(set(tournament_questions + market_pulse_questions + fall_aib_questions))
+            # Use URL-based deduplication since question objects aren't hashable
+            seen_urls = set()
+            all_found_questions = []
+            
+            for q in tournament_questions + market_pulse_questions + fall_aib_questions:
+                if q.page_url not in seen_urls:
+                    seen_urls.add(q.page_url)
+                    all_found_questions.append(q)
+            
             logger.info(f"Total unique questions found: {len(all_found_questions)}")
             
             # Step 6: Forecast on all found questions
