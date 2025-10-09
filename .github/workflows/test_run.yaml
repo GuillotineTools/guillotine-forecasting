@@ -1,0 +1,79 @@
+name: Test Tournament Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_tournament:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install
+          
+      - name: Debug environment
+        run: |
+          pwd
+          ls -la
+          python --version
+          poetry --version
+          
+      - name: Run Tournament Mode
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+        run: |
+          echo "🚀 Running tournament mode..."
+          echo "⏰ Started at: $(date)"
+          
+          # Debug: Check if files exist
+          echo "📁 Current directory:"
+          ls -la
+          echo ""
+          
+          # Check if main.py exists
+          if [ ! -f "main.py" ]; then
+            echo "❌ main.py not found!"
+            exit 1
+          fi
+          
+          echo "📄 main.py found, attempting to run..."
+          
+          # Run the actual tournament
+          poetry run python main.py --mode tournament 2>&1 | tee tournament_output.log
+          
+          echo "✅ Tournament mode completed at: $(date)"
+          
+      - name: Save full log
+        if: always()
+        run: |
+          echo "=== FULL TOURNAMENT LOG ===" >> full_log.txt
+          cat tournament_output.log >> full_log.txt
+          
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-tournament-logs-${{ github.run_number }}
+          path: |
+            outputs/
+            tournament_output.log
+            full_log.txt
