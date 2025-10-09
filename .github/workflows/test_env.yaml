@@ -55,3 +55,4 @@ jobs:
             echo "  🔧 Fix the missing environment variables in GitHub Secrets"
             echo "  📍 Go to: https://github.com/GuillotineTools/guillotine-forecasting/settings/secrets/actions"
           fi
+# Manual trigger test at Thu Oct  9 02:28:35 PM JST 2025
