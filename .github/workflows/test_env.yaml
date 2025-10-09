@@ -1,0 +1,57 @@
+name: Test Environment Variables
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_env:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Test Environment Variables
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "🔍 Testing Environment Variables"
+          echo "=========================="
+          
+          echo "METACULUS_TOKEN:"
+          if [ -z "$METACULUS_TOKEN" ]; then
+            echo "  ❌ METACULUS_TOKEN is not set!"
+            echo "  📍 This is the main issue - tournament cannot run without it"
+          else
+            echo "  ✅ METACULUS_TOKEN is set"
+            echo "  📍 Length: ${#METACULUS_TOKEN} characters"
+          fi
+          
+          echo ""
+          echo "OPENROUTER_API_KEY:"
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "  ❌ OPENROUTER_API_KEY is not set!"
+            echo "  📍 This may cause issues but tournament might still run"
+          else
+            echo "  ✅ OPENROUTER_API_KEY is set"
+            echo "  📍 Length: ${#OPENROUTER_API_KEY} characters"
+          fi
+          
+          echo ""
+          echo "Environment Status:"
+          if [ -n "$METACULUS_TOKEN" ] && [ -n "$OPENROUTER_API_KEY" ]; then
+            echo "  ✅ Both critical environment variables are available"
+            echo "  🎯 Tournament should be able to run"
+          else
+            echo "  ❌ Missing critical environment variables"
+            echo "  🔧 This is why the tournament workflow is failing"
+          fi
+          
+          echo ""
+          echo "Next Steps:"
+          if [ -n "$METACULUS_TOKEN" ] && [ -n "$OPENROUTER_API_KEY" ]; then
+            echo "  🚀 Environment variables are OK - the issue is elsewhere"
+            echo "  🔍 Check the tournament logic in main.py"
+          else
+            echo "  🔧 Fix the missing environment variables in GitHub Secrets"
+            echo "  📍 Go to: https://github.com/GuillotineTools/guillotine-forecasting/settings/secrets/actions"
+          fi
