@@ -2195,3 +2195,4 @@ if __name__ == "__main__":
             raise
         else:
             logger.info("Continuing despite error in GitHub Actions environment")# Test minimal Kiko integration at Thu Oct  9 06:54:23 PM JST 2025
+# Test fixed syntax at Thu Oct  9 07:14:12 PM JST 2025
