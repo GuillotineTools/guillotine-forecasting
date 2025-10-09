@@ -1,0 +1,62 @@
+name: Tournament Mode
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  run_tournament:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          
+      - name: Install dependencies
+        run: |
+          cd /home/g/g/guillotine-forecasting
+          poetry install
+          
+      - name: Run Tournament Mode
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+        run: |
+          cd /home/g/g/guillotine-forecasting
+          echo "🚀 Running tournament mode..."
+          echo "⏰ Started at: $(date)"
+          poetry run python main.py --mode tournament
+          echo "✅ Tournament mode completed at: $(date)"
+          
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: tournament-logs-${{ github.run_number }}
+          path: outputs/
+          
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Tournament Mode Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Workflow completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Check logs in artifacts for detailed results" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 All 7 tournaments should be processed including Kiko Llaneras Tournament" >> $GITHUB_STEP_SUMMARY
