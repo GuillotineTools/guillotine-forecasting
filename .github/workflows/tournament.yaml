@@ -19,14 +19,16 @@ jobs:
         with:
           python-version: "3.11"
           
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          
       - name: Install dependencies
         run: |
-          poetry install
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv beautifulsoup4 markdown
+          
+      - name: Debug environment
+        run: |
+          pwd
+          ls -la
+          python --version
           
       - name: Run Tournament Mode
         env:
@@ -41,7 +43,30 @@ jobs:
         run: |
           echo "🚀 Running tournament mode..."
           echo "⏰ Started at: $(date)"
-          poetry run python main.py --mode tournament
+          
+          # Check if main.py exists
+          if [ ! -f "main.py" ]; then
+            echo "❌ main.py not found!"
+            exit 1
+          fi
+          
+          # Check if required packages are available
+          python -c "
+import sys
+try:
+    import requests
+    import dotenv
+    import bs4
+    import markdown
+    print('✅ All required packages available')
+except ImportError as e:
+    print(f'❌ Import error: {e}')
+    sys.exit(1)
+"
+          
+          # Run the actual tournament
+          python main.py --mode tournament
+          
           echo "✅ Tournament mode completed at: $(date)"
           
       - name: Upload logs
@@ -57,4 +82,4 @@ jobs:
           echo "## Tournament Mode Results" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Workflow completed" >> $GITHUB_STEP_SUMMARY
           echo "- 📊 Check logs in artifacts for detailed results" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 All 7 tournaments should be processed including Kiko Llaneras Tournament" >> $GITHUB_STEP_SUMMARY# Trigger workflow
+          echo "- 🎯 All 7 tournaments should be processed including Kiko Llaneras Tournament" >> $GITHUB_STEP_SUMMARY
