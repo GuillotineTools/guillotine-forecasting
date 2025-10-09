@@ -1670,27 +1670,101 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 template_bot.forecast_questions(minibench_questions, return_exceptions=True)
             )
             
-            # Get Fall AIB 2025 questions
+            # Get Fall AIB 2025 questions - try multiple approaches
             logger.info("Setting skip_previously_forecasted_questions = False for tournament mode")
             template_bot.skip_previously_forecasted_questions = False
-            fall_aib_filter = ApiFilter(
-                allowed_statuses=["open"],
-                allowed_tournaments=["fall-aib-2025"]
-            )
-            fall_aib_questions = asyncio.run(
-                MetaculusApi.get_questions_matching_filter(fall_aib_filter)
-            )
             
-            # For debugging, also get questions with other statuses to see what's available
-            all_fall_aib_filter = ApiFilter(
-                allowed_tournaments=["fall-aib-2025"]
-            )
-            all_fall_aib_questions = asyncio.run(
-                MetaculusApi.get_questions_matching_filter(all_fall_aib_filter)
-            )
+            # Try both slug and ID for Fall AIB 2025
+            fall_aib_questions = []
+            all_fall_aib_questions = []
+            
+            # Method 1: Try with slug
+            try:
+                fall_aib_filter = ApiFilter(
+                    allowed_statuses=["open"],
+                    allowed_tournaments=["fall-aib-2025"]
+                )
+                fall_aib_by_slug = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(fall_aib_filter)
+                )
+                fall_aib_questions.extend(fall_aib_by_slug)
+                logger.info(f"Found {len(fall_aib_by_slug)} Fall AIB questions by slug 'fall-aib-2025'")
+            except Exception as e:
+                logger.info(f"Error using slug 'fall-aib-2025': {e}")
+            
+            # Method 2: Try with ID if available
+            try:
+                if hasattr(MetaculusApi, 'AIB_FALL_2025_ID'):
+                    fall_aib_id = MetaculusApi.AIB_FALL_2025_ID
+                    fall_aib_filter_id = ApiFilter(
+                        allowed_statuses=["open"],
+                        allowed_tournaments=[fall_aib_id]
+                    )
+                    fall_aib_by_id = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(fall_aib_filter_id)
+                    )
+                    # Add questions not already found
+                    for q in fall_aib_by_id:
+                        if q not in fall_aib_questions:
+                            fall_aib_questions.append(q)
+                    logger.info(f"Found {len(fall_aib_by_id)} additional Fall AIB questions by ID {fall_aib_id}")
+            except Exception as e:
+                logger.info(f"Error using AIB_FALL_2025_ID: {e}")
+                
+            # For debugging, also get questions with other statuses
+            try:
+                all_fall_aib_filter = ApiFilter(
+                    allowed_tournaments=["fall-aib-2025"]
+                )
+                all_fall_aib_questions = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(all_fall_aib_filter)
+                )
+                
+                # Also try with ID for all statuses
+                if hasattr(MetaculusApi, 'AIB_FALL_2025_ID'):
+                    all_fall_aib_filter_id = ApiFilter(
+                        allowed_tournaments=[MetaculusApi.AIB_FALL_2025_ID]
+                    )
+                    all_fall_aib_by_id = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_fall_aib_filter_id)
+                    )
+                    for q in all_fall_aib_by_id:
+                        if q not in all_fall_aib_questions:
+                            all_fall_aib_questions.append(q)
+            except Exception as e:
+                logger.info(f"Error getting all Fall AIB questions: {e}")
+                
             logger.info(f"Found {len(all_fall_aib_questions)} total questions for Fall AIB 2025 (including closed).")
-            
             logger.info(f"Found {len(fall_aib_questions)} OPEN questions for Fall AIB 2025.")
+            
+            # FALLBACK: If tournament filtering doesn't find enough questions, 
+            # try keyword-based detection as backup
+            if len(fall_aib_questions) < 3:
+                logger.info("Tournament filtering found few questions, trying keyword-based fallback...")
+                
+                # Get all open questions and search for Fall AIB related topics
+                all_open_filter = ApiFilter(allowed_statuses=["open"])
+                all_open_questions = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(all_open_filter)
+                )
+                
+                fall_aib_keywords = [
+                    'pandemic', 'WHO', 'World Health Organization', 'public health', 'PHEIC',
+                    'biosecurity', 'biorisk', 'H5N1', 'avian influenza', 'bird flu',
+                    'global catastrophic risk', 'existential risk', 'biological weapon',
+                    'artificial intelligence', 'AI safety', 'nuclear risk', 'climate change'
+                ]
+                
+                fallback_questions = []
+                for q in all_open_questions:
+                    if hasattr(q, 'question_text'):
+                        question_text_lower = q.question_text.lower()
+                        if any(keyword.lower() in question_text_lower for keyword in fall_aib_keywords):
+                            if q not in fall_aib_questions:  # Avoid duplicates
+                                fall_aib_questions.append(q)
+                                logger.info(f"Found Fall AIB question by keyword: {q.question_text[:50]}...")
+                
+                logger.info(f"After keyword fallback: {len(fall_aib_questions)} total questions for Fall AIB 2025.")
 
             # Send ntfy alerts for new Fall AIB questions
             for q in fall_aib_questions:
@@ -1847,7 +1921,106 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                 template_bot.forecast_questions(market_pulse_questions, return_exceptions=True)
             )
             
-            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
+            # Get Kiko Llaneras Tournament questions
+            logger.info("Getting Kiko Llaneras Tournament questions")
+            kiko_questions = []
+            
+            # Method 1: Try tournament filter if there's a constant
+            try:
+                # Check if there's a Kiko tournament constant
+                kiko_constants = [attr for attr in dir(MetaculusApi) if 'kiko' in attr.lower()]
+                if kiko_constants:
+                    logger.info(f"Found Kiko constants: {kiko_constants}")
+                    for const in kiko_constants:
+                        kiko_id = getattr(MetaculusApi, const)
+                        try:
+                            kiko_filter = ApiFilter(
+                                allowed_statuses=["open"],
+                                allowed_tournaments=[kiko_id]
+                            )
+                            kiko_by_tournament = asyncio.run(
+                                MetaculusApi.get_questions_matching_filter(kiko_filter)
+                            )
+                            kiko_questions.extend(kiko_by_tournament)
+                            logger.info(f"Found {len(kiko_by_tournament)} questions via {const} ({kiko_id})")
+                        except Exception as e:
+                            logger.info(f"Error using {const}: {e}")
+            except Exception as e:
+                logger.info(f"Error checking Kiko constants: {e}")
+            
+            # Method 2: Community-based detection (most reliable)
+            if len(kiko_questions) == 0:
+                logger.info("Trying community-based detection for Kiko tournament...")
+                try:
+                    all_open_filter = ApiFilter(allowed_statuses=["open"])
+                    all_open_questions = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_open_filter)
+                    )
+                    
+                    # Look for questions in the 'kiko' community
+                    for q in all_open_questions:
+                        if hasattr(q, 'community') and q.community:
+                            if hasattr(q.community, 'slug') and q.community.slug == 'kiko':
+                                kiko_questions.append(q)
+                        elif hasattr(q, 'community_slug') and q.community_slug == 'kiko':
+                            kiko_questions.append(q)
+                    
+                    logger.info(f"Found {len(kiko_questions)} questions in 'kiko' community")
+                except Exception as e:
+                    logger.info(f"Error with community detection: {e}")
+            
+            # Method 3: Keyword fallback
+            if len(kiko_questions) == 0:
+                logger.info("Trying keyword-based detection for Kiko tournament...")
+                try:
+                    all_open_filter = ApiFilter(allowed_statuses=["open"])
+                    all_open_questions = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_open_filter)
+                    )
+                    
+                    kiko_keywords = ['Kiko Llaneras', 'Llaneras', 'Kiko', 'Kiko Llaneras Tournament']
+                    
+                    for q in all_open_questions:
+                        if hasattr(q, 'question_text'):
+                            question_text_lower = q.question_text.lower()
+                            if any(keyword.lower() in question_text_lower for keyword in kiko_keywords):
+                                if q not in kiko_questions:
+                                    kiko_questions.append(q)
+                                    logger.info(f"Found Kiko question by keyword: {q.question_text[:50]}...")
+                    
+                    logger.info(f"After keyword fallback: {len(kiko_questions)} total Kiko questions")
+                except Exception as e:
+                    logger.info(f"Error with keyword fallback: {e}")
+            
+            logger.info(f"Found {len(kiko_questions)} Kiko Llaneras Tournament questions")
+            for q in kiko_questions:
+                logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
+
+            # Send ntfy alerts for new Kiko questions
+            for q in kiko_questions:
+                try:
+                    # Determine question type
+                    question_type = "binary"
+                    if hasattr(q, 'question_type'):
+                        if q.question_type.value == "numeric":
+                            question_type = "numeric"
+                        elif q.question_type.value == "multiple_choice":
+                            question_type = "multiple_choice"
+                    
+                    send_new_question_alert(
+                        question_title=q.question_text[:100] + "..." if len(q.question_text) > 100 else q.question_text,
+                        question_url=q.page_url,
+                        question_type=question_type,
+                        tournament="Kiko Llaneras Tournament"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send ntfy alert for Kiko question {q.page_url}: {e}")
+
+            kiko_reports = asyncio.run(
+                template_bot.forecast_questions(kiko_questions, return_exceptions=True)
+            )
+            
+            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports + market_pulse_reports + kiko_reports
         elif run_mode == "metaculus_cup":
             # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
             # The permanent ID for the Metaculus Cup is now 32828
@@ -1924,7 +2097,12 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info(f"Found {len(market_pulse_questions)} Market Pulse questions by pattern")
             
             # Step 4: Look for Fall AIB questions by patterns  
-            fall_aib_keywords = ['artificial intelligence', 'AI safety', 'nuclear risk', 'climate change']
+            fall_aib_keywords = [
+                'artificial intelligence', 'AI safety', 'nuclear risk', 'climate change',
+                'pandemic', 'WHO', 'World Health Organization', 'public health', 'PHEIC',
+                'biosecurity', 'biorisk', 'H5N1', 'avian influenza', 'bird flu',
+                'global catastrophic risk', 'existential risk', 'biological weapon'
+            ]
             
             fall_aib_questions = []
             for q in all_questions:
@@ -2037,7 +2215,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 
     # Log final summary
         if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}")
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}, Kiko: {len(kiko_questions)}")
             
             # Check for recently missed questions that the bot might have missed
             # This catches questions that were only open for a short time window

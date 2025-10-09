@@ -13,7 +13,7 @@ poetry shell
 
 ### Running the Bot
 ```bash
-# Main modes (includes all tournaments: AI Competition, MiniBench, Fall AIB 2025, POTUS Predictions, RAND Policy Challenge)
+# Main modes (includes all tournaments: AI Competition, MiniBench, Fall AIB 2025, POTUS Predictions, RAND Policy Challenge, Market Pulse Challenge 25Q4, Kiko Llaneras Tournament)
 poetry run python main.py --mode tournament      # Production tournament mode
 poetry run python main.py --mode metaculus_cup   # Testing on regular questions
 poetry run python main.py --mode test_questions  # Debug with dummy questions

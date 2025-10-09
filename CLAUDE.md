@@ -120,7 +120,7 @@ Copy `.env.template` to `.env` and fill in your keys for local development.
 - Uses asyncio for concurrent processing with rate limiting
 - Logs are written to both console and markdown files with timestamps
 - Individual forecast outputs are saved as markdown files with timestamps
-- The bot supports three tournaments: AI Competition, MiniBench, and Fall AIB 2025
+- The bot supports seven tournaments: AI Competition, MiniBench, Fall AIB 2025, POTUS Predictions, RAND Policy Challenge, Market Pulse Challenge 25Q4, and Kiko Llaneras Tournament
 - In GitHub Actions environment, errors are handled gracefully to prevent workflow failures
 
 ## Dependencies
