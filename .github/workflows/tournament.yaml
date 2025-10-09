@@ -57,4 +57,4 @@ jobs:
           echo "## Tournament Mode Results" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Workflow completed" >> $GITHUB_STEP_SUMMARY
           echo "- 📊 Check logs in artifacts for detailed results" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 All 7 tournaments should be processed including Kiko Llaneras Tournament" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 All 7 tournaments should be processed including Kiko Llaneras Tournament" >> $GITHUB_STEP_SUMMARY# Trigger workflow
