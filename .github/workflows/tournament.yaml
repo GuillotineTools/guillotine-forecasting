@@ -26,7 +26,6 @@ jobs:
           
       - name: Install dependencies
         run: |
-          cd /home/g/g/guillotine-forecasting
           poetry install
           
       - name: Run Tournament Mode
@@ -40,7 +39,6 @@ jobs:
           ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
           ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
         run: |
-          cd /home/g/g/guillotine-forecasting
           echo "🚀 Running tournament mode..."
           echo "⏰ Started at: $(date)"
           poetry run python main.py --mode tournament
