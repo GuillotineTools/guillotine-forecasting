@@ -1851,51 +1851,26 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             logger.info("Getting Kiko Llaneras Tournament questions")
             kiko_questions = []
             
-            # Method 1: Try tournament constants
+            # Community-based detection (most reliable)
             try:
-                kiko_constants = [attr for attr in dir(MetaculusApi) if 'kiko' in attr.lower()]
-                if kiko_constants:
-                    logger.info(f"Found Kiko constants: {kiko_constants}")
-                    for const in kiko_constants:
-                        kiko_id = getattr(MetaculusApi, const)
-                        try:
-                            kiko_filter = ApiFilter(
-                                allowed_statuses=["open"],
-                                allowed_tournaments=[kiko_id]
-                            )
-                            kiko_by_tournament = asyncio.run(
-                                MetaculusApi.get_questions_matching_filter(kiko_filter)
-                            )
-                            kiko_questions.extend(kiko_by_tournament)
-                            logger.info(f"Found {len(kiko_by_tournament)} questions via {const} ({kiko_id})")
-                        except Exception as e:
-                            logger.info(f"Error using {const}: {e}")
-            except Exception as e:
-                logger.info(f"Error checking Kiko constants: {e}")
-            
-            # Method 2: Community-based detection
-            if len(kiko_questions) == 0:
-                logger.info("Trying community-based detection for Kiko tournament...")
-                try:
-                    all_open_filter = ApiFilter(allowed_statuses=["open"])
-                    all_open_questions = asyncio.run(
-                        MetaculusApi.get_questions_matching_filter(all_open_filter)
-                    )
-                    
-                    for q in all_open_questions:
-                        if hasattr(q, 'community') and q.community:
-                            if hasattr(q.community, 'slug') and q.community.slug == 'kiko':
-                                kiko_questions.append(q)
+                all_open_filter = ApiFilter(allowed_statuses=["open"])
+                all_open_questions = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(all_open_filter)
+                )
+                
+                for q in all_open_questions:
+                    if hasattr(q, 'community') and q.community:
+                        if hasattr(q.community, 'slug') and q.community.slug == 'kiko':
+                            kiko_questions.append(q)
                         elif hasattr(q, 'community_slug') and q.community_slug == 'kiko':
                             kiko_questions.append(q)
-                    
-                    logger.info(f"Found {len(kiko_questions)} questions in 'kiko' community")
-                except Exception as e:
-                    logger.info(f"Error with community detection: {e}")
+                
+                logger.info(f"Found {len(kiko_questions)} questions in 'kiko' community")
+            except Exception as e:
+                logger.info(f"Error with community detection: {e}")
             
-            # Method 3: Keyword fallback
+            # Keyword fallback
             if len(kiko_questions) == 0:
-                logger.info("Trying keyword-based detection for Kiko tournament...")
                 kiko_keywords = ['Kiko Llaneras', 'Llaneras', 'Kiko', 'Kiko Llaneras Tournament']
                 
                 for q in all_open_questions:
@@ -1912,30 +1887,9 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             for q in kiko_questions:
                 logger.info(f"  - {q.page_url}: {q.question_text} (Status: {getattr(q, 'state.name', 'unknown')})")
 
-            # Send ntfy alerts for new Kiko questions
-            for q in kiko_questions:
-                try:
-                    question_type = "binary"
-                    if hasattr(q, 'question_type'):
-                        if q.question_type.value == "numeric":
-                            question_type = "numeric"
-                        elif q.question_type.value == "multiple_choice":
-                            question_type = "multiple_choice"
-                    
-                    send_new_question_alert(
-                        question_title=q.question_text[:100] + "..." if len(q.question_text) > 100 else q.question_text,
-                        question_url=q.page_url,
-                        question_type=question_type,
-                        tournament="Kiko Llaneras Tournament"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to send ntfy alert for Kiko question {q.page_url}: {e}")
-
             kiko_reports = asyncio.run(
                 template_bot.forecast_questions(kiko_questions, return_exceptions=True)
             )
-            
-            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports + market_pulse_reports + kiko_reports + kiko_reports
             )
             
             forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
@@ -2120,7 +2074,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
 
     # Log final summary
         if run_mode == "tournament":
-            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}, Kiko: {len(kiko_questions)}") {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}")
+            logger.info(f"All tournament processing completed. Found questions: AI Comp: {len(ai_comp_questions)}, MiniBench: {len(minibench_questions)}, Fall AIB: {len(fall_aib_questions)}, POTUS: {len(potus_questions)}, RAND: {len(rand_questions)}, Market Pulse: {len(market_pulse_questions)}, Kiko: {len(kiko_questions)}")
             
             # Check for recently missed questions that the bot might have missed
             # This catches questions that were only open for a short time window
@@ -2240,4 +2194,4 @@ if __name__ == "__main__":
         if os.getenv('GITHUB_ACTIONS') != 'true':
             raise
         else:
-            logger.info("Continuing despite error in GitHub Actions environment")# Test fixed main.py with Kiko integration at Thu Oct  9 06:18:58 PM JST 2025
+            logger.info("Continuing despite error in GitHub Actions environment")
