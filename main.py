@@ -2194,4 +2194,4 @@ if __name__ == "__main__":
         if os.getenv('GITHUB_ACTIONS') != 'true':
             raise
         else:
-            logger.info("Continuing despite error in GitHub Actions environment")
+            logger.info("Continuing despite error in GitHub Actions environment")# Test minimal Kiko integration at Thu Oct  9 06:54:23 PM JST 2025
