@@ -1890,7 +1890,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             kiko_reports = asyncio.run(
                 template_bot.forecast_questions(kiko_questions, return_exceptions=True)
             )
-            )
+
             
             forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
         elif run_mode == "metaculus_cup":
