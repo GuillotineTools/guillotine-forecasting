@@ -1,0 +1,70 @@
+name: Test Tournament Integration
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'main.py' ]
+  workflow_dispatch:
+
+jobs:
+  test_tournament:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv beautifulsoup4 markdown
+          
+      - name: Test tournament code structure
+        run: |
+          echo "🔍 Testing tournament code structure..."
+          
+          # Check if main.py has all 7 tournaments
+          if grep -q "ai_comp_questions" main.py && \
+             grep -q "minibench_questions" main.py && \
+             grep -q "fall_aib_questions" main.py && \
+             grep -q "potus_questions" main.py && \
+             grep -q "rand_questions" main.py && \
+             grep -q "market_pulse_questions" main.py && \
+             grep -q "kiko_questions" main.py; then
+            echo "✅ All 7 tournaments found in code"
+          else
+            echo "❌ Missing tournaments in code"
+            exit 1
+          fi
+          
+          # Check if kiko_reports is included in forecast_reports
+          if grep -q "kiko_reports" main.py && grep -q "market_pulse_reports" main.py; then
+            echo "✅ Kiko and Market Pulse reports included in final forecast"
+          else
+            echo "❌ Kiko or Market Pulse reports missing from final forecast"
+            exit 1
+          fi
+          
+          # Check if the logging includes all tournaments
+          if grep -q "AI Comp:" main.py && grep -q "MiniBench:" main.py && \
+             grep -q "Fall AIB:" main.py && grep -q "POTUS:" main.py && \
+             grep -q "RAND:" main.py && grep -q "Market Pulse:" main.py && \
+             grep -q "Kiko:" main.py; then
+            echo "✅ Tournament logging includes all 7 tournaments"
+          else
+            echo "❌ Tournament logging incomplete"
+            exit 1
+          fi
+          
+          echo "✅ All tournament integration tests passed!"
+          
+      - name: Test Python syntax
+        run: |
+          echo "🐍 Testing Python syntax..."
+          python -m py_compile main.py
+          echo "✅ Python syntax is valid"

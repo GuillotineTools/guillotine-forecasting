@@ -1892,7 +1892,7 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             )
 
             
-            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports
+            forecast_reports = seasonal_tournament_reports + minibench_reports + fall_aib_reports + potus_reports + rand_reports + market_pulse_reports + kiko_reports
         elif run_mode == "metaculus_cup":
             # The Metaculus cup is a good way to test the bot's performance on regularly open questions. 
             # The permanent ID for the Metaculus Cup is now 32828
