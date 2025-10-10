@@ -1,0 +1,93 @@
+name: Manual Tournament Trigger
+
+on:
+  workflow_dispatch:
+
+jobs:
+  manual_tournament:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          
+      - name: Install dependencies
+        run: |
+          poetry install
+          # Install additional packages that might be missing
+          poetry add beautifulsoup4 markdown
+          
+      - name: Debug environment
+        run: |
+          pwd
+          ls -la
+          poetry run python --version
+          
+      - name: Run Tournament Mode
+        env:
+          METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASKNEWS_CLIENT_ID: ${{ secrets.ASKNEWS_CLIENT_ID }}
+          ASKNEWS_SECRET: ${{ secrets.ASKNEWS_SECRET }}
+        run: |
+          echo "🚀 **MANUAL TRIGGER** - Running tournament mode..."
+          echo "⏰ Started at: $(date)"
+          echo "🎯 Processing all 7 tournaments: AI Competition, MiniBench, Fall AIB 2025, POTUS Predictions, RAND Policy Challenge, Market Pulse Challenge 25Q4, Kiko Llaneras Tournament"
+          echo "🔍 Special focus on Market Pulse tournament detection"
+          
+          # Check if main.py exists
+          if [ ! -f "main.py" ]; then
+            echo "❌ main.py not found!"
+            exit 1
+          fi
+          
+          # Check if required packages are available
+          poetry run python -c "
+import sys
+try:
+    import requests
+    import dotenv
+    import bs4
+    import markdown
+    import forecasting_tools
+    print('✅ All required packages available')
+except ImportError as e:
+    print(f'❌ Import error: {e}')
+    sys.exit(1)
+"
+          
+          # Run the actual tournament
+          poetry run python main.py --mode tournament
+          
+          echo "✅ Manual tournament run completed at: $(date)"
+          
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: manual-tournament-logs-${{ github.run_number }}
+          path: outputs/
+          
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Manual Tournament Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Manual workflow completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Check logs in artifacts for detailed results" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 All 7 tournaments processed including Market Pulse detection" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 Enhanced Market Pulse detection with 4 fallback methods" >> $GITHUB_STEP_SUMMARY
+          echo "- 🤖 Bot used 4-model LLM ensemble with fallback system" >> $GITHUB_STEP_SUMMARY
