@@ -1813,15 +1813,99 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
             
             # Get Market Pulse Challenge 25Q4 questions
             logger.info("Getting Market Pulse Challenge 25Q4 tournament questions")
-            market_pulse_filter = ApiFilter(
-                allowed_statuses=["open"],
-                allowed_tournaments=["market-pulse-25q4"]
-            )
-            market_pulse_questions = asyncio.run(
-                MetaculusApi.get_questions_matching_filter(market_pulse_filter)
-            )
+            logger.info(f"Using Market Pulse tournament ID: {MetaculusApi.CURRENT_MARKET_PULSE_ID}")
+            market_pulse_questions = []
             
-            logger.info(f"Found {len(market_pulse_questions)} open Market Pulse Challenge 25Q4 questions")
+            # Method 1: Try tournament filter (primary method)
+            try:
+                market_pulse_filter = ApiFilter(
+                    allowed_statuses=["open"],
+                    allowed_tournaments=[MetaculusApi.CURRENT_MARKET_PULSE_ID]
+                )
+                market_pulse_questions = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(market_pulse_filter)
+                )
+                logger.info(f"Method 1 - Tournament filter: Found {len(market_pulse_questions)} Market Pulse questions")
+            except Exception as e:
+                logger.warning(f"Method 1 failed: {e}")
+            
+            # Method 2: For debugging, also get all Market Pulse questions to see what's available
+            try:
+                all_market_pulse_filter = ApiFilter(
+                    allowed_tournaments=[MetaculusApi.CURRENT_MARKET_PULSE_ID]
+                )
+                all_market_pulse_questions = asyncio.run(
+                    MetaculusApi.get_questions_matching_filter(all_market_pulse_filter)
+                )
+                logger.info(f"Found {len(all_market_pulse_questions)} total questions for Market Pulse Challenge 25Q4 (including closed).")
+            except Exception as e:
+                logger.warning(f"Error getting all Market Pulse questions: {e}")
+            
+            # Method 3: Keyword fallback from all open questions
+            if len(market_pulse_questions) == 0:
+                logger.warning("No Market Pulse questions found via tournament filter, trying keyword fallback...")
+                try:
+                    all_open_filter = ApiFilter(allowed_statuses=["open"])
+                    all_open_questions = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_open_filter)
+                    )
+                    
+                    # Market Pulse keywords for fallback detection
+                    market_pulse_keywords = [
+                        'S&P 500', 'stock market', 'Market Pulse', 'market index', 
+                        'trading', 'financial markets', 'equity markets', 'volatility',
+                        'NYSE', 'NASDAQ', 'Dow Jones', 'VIX', 'market volatility',
+                        'stock price', 'index fund', 'ETF', 'market returns'
+                    ]
+                    
+                    for q in all_open_questions:
+                        if hasattr(q, 'question_text'):
+                            question_text_lower = q.question_text.lower()
+                            if any(keyword.lower() in question_text_lower for keyword in market_pulse_keywords):
+                                if q not in market_pulse_questions:  # Avoid duplicates
+                                    market_pulse_questions.append(q)
+                                    logger.info(f"Found Market Pulse question by keyword: {q.question_text[:50]}...")
+                    
+                    logger.info(f"After keyword fallback: {len(market_pulse_questions)} total Market Pulse questions")
+                except Exception as e:
+                    logger.error(f"Error with Market Pulse keyword fallback: {e}")
+            
+            # Method 4: Check for Market Pulse in project/series metadata
+            if len(market_pulse_questions) == 0:
+                logger.warning("Still no Market Pulse questions, checking project metadata...")
+                try:
+                    all_open_filter = ApiFilter(allowed_statuses=["open"])
+                    all_open_questions = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_open_filter)
+                    )
+                    
+                    for q in all_open_questions:
+                        # Check various metadata fields for Market Pulse
+                        if hasattr(q, 'projects') and q.projects:
+                            for project in q.projects:
+                                if hasattr(project, 'title') and 'market' in project.title.lower():
+                                    market_pulse_questions.append(q)
+                                    logger.info(f"Found Market Pulse by project title: {q.question_text[:50]}...")
+                                    break
+                                elif hasattr(project, 'slug') and 'market' in project.slug.lower():
+                                    market_pulse_questions.append(q)
+                                    logger.info(f"Found Market Pulse by project slug: {q.question_text[:50]}...")
+                                    break
+                        
+                        # Check series metadata
+                        if hasattr(q, 'series') and q.series:
+                            if hasattr(q.series, 'title') and 'market' in q.series.title.lower():
+                                market_pulse_questions.append(q)
+                                logger.info(f"Found Market Pulse by series title: {q.question_text[:50]}...")
+                            elif hasattr(q.series, 'slug') and 'market' in q.series.slug.lower():
+                                market_pulse_questions.append(q)
+                                logger.info(f"Found Market Pulse by series slug: {q.question_text[:50]}...")
+                    
+                    logger.info(f"After project metadata check: {len(market_pulse_questions)} total Market Pulse questions")
+                except Exception as e:
+                    logger.error(f"Error with Market Pulse project metadata check: {e}")
+            
+            logger.info(f"Final count: {len(market_pulse_questions)} Market Pulse Challenge 25Q4 questions")
             for q in market_pulse_questions:
                 logger.info(f"  - {q.page_url}: {q.question_text[:80]}... (Status: {getattr(q, 'state.name', 'unknown')})")
                 
@@ -1842,6 +1926,33 @@ Host: {os.getenv('GITHUB_ACTIONS', 'Local')}
                     )
                 except Exception as e:
                     logger.warning(f"Failed to send ntfy alert for Market Pulse question {q.page_url}: {e}")
+
+            # Fallback: If no Market Pulse questions found via tournament filter, try keyword search
+            if len(market_pulse_questions) == 0:
+                logger.warning("No Market Pulse questions found via tournament filter, trying keyword fallback...")
+                try:
+                    all_open_filter = ApiFilter(allowed_statuses=["open"])
+                    all_open_questions = asyncio.run(
+                        MetaculusApi.get_questions_matching_filter(all_open_filter)
+                    )
+                    
+                    # Market Pulse keywords for fallback detection
+                    market_pulse_keywords = [
+                        'S&P 500', 'stock market', 'Market Pulse', 'market index', 
+                        'trading', 'financial markets', 'equity markets', 'volatility',
+                        'NYSE', 'NASDAQ', 'Dow Jones'
+                    ]
+                    
+                    for q in all_open_questions:
+                        if hasattr(q, 'question_text'):
+                            question_text_lower = q.question_text.lower()
+                            if any(keyword.lower() in question_text_lower for keyword in market_pulse_keywords):
+                                market_pulse_questions.append(q)
+                                logger.info(f"Found Market Pulse question by keyword: {q.question_text[:50]}...")
+                    
+                    logger.info(f"After keyword fallback: {len(market_pulse_questions)} total Market Pulse questions")
+                except Exception as e:
+                    logger.error(f"Error with Market Pulse keyword fallback: {e}")
 
             market_pulse_reports = asyncio.run(
                 template_bot.forecast_questions(market_pulse_questions, return_exceptions=True)
